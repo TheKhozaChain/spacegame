@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI SPACE DEFENDER</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.sound.min.js"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background-color: #000;
+      color: #fff;
+      font-family: Arial, sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+    #email-input {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(0, 0, 0, 0.8);
+      padding: 20px;
+      border-radius: 10px;
+      border: 2px solid #0066ff;
+      display: none;
+      width: 300px;
+      text-align: center;
+    }
+    input, button {
+      margin: 10px 0;
+      padding: 8px;
+      width: 100%;
+    }
+    button {
+      background-color: #0066ff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    button:hover {
+      background-color: #0055cc;
+    }
+    .error {
+      color: #ff3333;
+    }
+    .success {
+      color: #33cc33;
+    }
+  </style>
+</head>
+<body>
+  <div id="email-input">
+    <h3>Submit Your Score</h3>
+    <input type="email" id="player-email" placeholder="Enter your email">
+    <p id="input-message"></p>
+    <button id="submit-score">Submit</button>
+    <button id="cancel-submit">Cancel</button>
+    <button id="share-button" style="display: none;">Share on Twitter</button>
+  </div>
+  <script type="module">
+    // Import Supabase configuration
+    import { SUPABASE_URL, SUPABASE_KEY } from './supabase-config.js';
+    
+    // Make configuration available to the sketch.js file
+    window.SUPABASE_URL = SUPABASE_URL;
+    window.SUPABASE_KEY = SUPABASE_KEY;
+    
+    // Create the Supabase client and make it available globally
+    try {
+      console.log("Initializing Supabase client in index.html...");
+      console.log("SUPABASE_URL:", SUPABASE_URL);
+      console.log("SUPABASE_KEY exists:", !!SUPABASE_KEY);
+      
+      // Check if supabase is available
+      if (typeof supabase === 'undefined') {
+        console.error("Error: supabase is not defined. Make sure the Supabase library is loaded correctly.");
+      } else {
+        // Create the client
+        window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
+        // Verify the client was created correctly
+        if (window.supabase && typeof window.supabase.from === 'function') {
+          console.log("Supabase client successfully initialized in index.html");
+        } else {
+          console.error("Supabase client was created but doesn't have the expected methods");
+        }
+      }
+    } catch (error) {
+      console.error("Error initializing Supabase client in index.html:", error);
+    }
+  </script>
+  <script src="sketch.js"></script>
+</body>
+</html>
