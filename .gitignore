@@ -16,9 +16,6 @@ yarn.lock
 .env.test.local
 .env.production.local
 
-# Supabase configuration with real keys
-supabase-config.js
-
 # IDE and editor folders
 .idea/
 .vscode/
