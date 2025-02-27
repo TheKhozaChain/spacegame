@@ -6,6 +6,7 @@ let explosions = [];
 let stars = [];
 let particles = [];
 let score = 0;
+let finalScore = 0; // Store the final score when game ends
 let lives = 3;
 let escapedEnemies = 0;
 let gameOver = false;
@@ -135,6 +136,14 @@ function draw() {
     drawTitleScreen();
   } else if (gameState === "playing") {
     // Game playing state
+    // Check if game is over
+    if (lives <= 0) {
+      // Save the final score before transitioning to game over
+      finalScore = score;
+      gameState = "gameOver";
+      return; // Exit the draw function to prevent further updates
+    }
+    
     // Update and draw particles
     for (let i = particles.length - 1; i >= 0; i--) {
       particles[i].update();
@@ -189,6 +198,7 @@ function draw() {
         playExplosionSound();
         enemies.splice(i, 1);
         if (lives <= 0) {
+          finalScore = score; // Save final score
           gameState = "gameOver";
         }
         continue;
@@ -200,6 +210,7 @@ function draw() {
         if (penalizeEscapedEnemies) {
           lives--;
           if (lives <= 0) {
+            finalScore = score; // Save final score
             gameState = "gameOver";
           }
         }
@@ -320,6 +331,7 @@ function draw() {
         playExplosionSound();
         enemyBullets.splice(i, 1);
         if (lives <= 0) {
+          finalScore = score; // Save final score
           gameState = "gameOver";
         }
       }
@@ -478,10 +490,10 @@ function drawGameOverScreen() {
   // Final score - moved up
   textSize(40);
   fill(255);
-  text(`FINAL SCORE: ${score}`, WIDTH / 2, HEIGHT / 4 + 70);
+  text(`FINAL SCORE: ${finalScore}`, WIDTH / 2, HEIGHT / 4 + 70);
   
   // High score - moved up
-  if (score >= highScore) {
+  if (finalScore >= highScore) {
     fill(255, 255, 0);
     textSize(30);
     text("NEW HIGH SCORE!", WIDTH / 2, HEIGHT / 4 + 120);
@@ -558,6 +570,9 @@ function drawLeaderboardScreen() {
   } 
   // Display leaderboard
   else if (leaderboardData.length > 0) {
+    // Check if there's a current game entry
+    const hasCurrentGame = leaderboardData.some(entry => entry.isCurrentGame);
+    
     // Header
     fill(200, 200, 255);
     textSize(20);
@@ -567,23 +582,41 @@ function drawLeaderboardScreen() {
     text("SCORE", 500, 130);
     text("LEVEL", 600, 130);
     
+    // Note about current game
+    if (hasCurrentGame && !scoreSubmitted) {
+      textAlign(CENTER);
+      fill(0, 255, 200);
+      textSize(14);
+      text("* Current game score (not yet submitted)", WIDTH / 2, HEIGHT - 120);
+      textAlign(LEFT);
+    }
+    
     // Scores
     fill(255);
     textSize(16);
     for (let i = 0; i < Math.min(leaderboardData.length, 10); i++) {
       const entry = leaderboardData[i];
-      const email = entry.player_email.substring(0, 3) + "..." + 
-                    entry.player_email.substring(entry.player_email.indexOf('@'));
+      
+      // Format email display
+      let displayEmail;
+      if (entry.isCurrentGame) {
+        displayEmail = "CURRENT GAME *";
+      } else {
+        displayEmail = entry.player_email.substring(0, 3) + "..." + 
+                      entry.player_email.substring(entry.player_email.indexOf('@'));
+      }
       
       // Highlight the current player's score
       if (scoreSubmitted && entry.player_email === emailInput.value) {
-        fill(255, 255, 0);
+        fill(255, 255, 0); // Yellow for submitted score
+      } else if (entry.isCurrentGame) {
+        fill(0, 255, 200); // Cyan for current game score
       } else {
-        fill(255);
+        fill(255); // White for other scores
       }
       
       text(`${i + 1}.`, 100, 170 + i * 30);
-      text(email, 250, 170 + i * 30);
+      text(displayEmail, 250, 170 + i * 30);
       text(entry.score, 500, 170 + i * 30);
       text(entry.level_reached, 600, 170 + i * 30);
     }
@@ -635,6 +668,12 @@ function keyPressed() {
 }
 
 function mousePressed() {
+  // Check if email form is visible - if so, don't handle canvas clicks
+  const emailForm = document.getElementById('email-input');
+  if (emailForm && emailForm.style.display === 'block') {
+    return;
+  }
+  
   // Handle button clicks on title screen
   if (gameState === "title") {
     // Check if leaderboard button was clicked
@@ -649,14 +688,37 @@ function mousePressed() {
     // Check if submit to leaderboard button was clicked
     if (!scoreSubmitted &&
         mouseX > WIDTH / 2 - 150 && mouseX < WIDTH / 2 + 150 &&
-        mouseY > HEIGHT / 2 + 180 && mouseY < HEIGHT / 2 + 220) {
+        mouseY > HEIGHT / 4 + 260 && mouseY < HEIGHT / 4 + 300) {
       showEmailForm();
     }
     
     // Check if view leaderboard button was clicked
     if (mouseX > WIDTH / 2 - 100 && mouseX < WIDTH / 2 + 100 &&
-        mouseY > HEIGHT / 2 + 230 && mouseY < HEIGHT / 2 + 270) {
+        mouseY > HEIGHT / 4 + 320 && mouseY < HEIGHT / 4 + 360) {
+      console.log("View leaderboard button clicked");
+      
+      // Clear any existing leaderboard data to ensure fresh data
+      leaderboardData = [];
+      
+      // Add current game score to leaderboard data temporarily if not submitted
+      if (!scoreSubmitted && finalScore > 0) {
+        // Create a temporary entry for the current game
+        const tempEntry = {
+          player_email: "Current Game",
+          score: finalScore,
+          level_reached: level,
+          enemies_destroyed: killStreak,
+          isCurrentGame: true  // Flag to identify this as the current game
+        };
+        
+        // Add to leaderboard data
+        leaderboardData.push(tempEntry);
+      }
+      
+      // Fetch leaderboard data
       fetchLeaderboard();
+      
+      // Change game state to leaderboard
       gameState = "leaderboard";
     }
   }
@@ -665,6 +727,10 @@ function mousePressed() {
     // Check if back button was clicked
     if (mouseX > WIDTH / 2 - 100 && mouseX < WIDTH / 2 + 100 &&
         mouseY > HEIGHT - 80 && mouseY < HEIGHT - 40) {
+      // Remove temporary entry when going back
+      if (leaderboardData.length > 0) {
+        leaderboardData = leaderboardData.filter(entry => !entry.isCurrentGame);
+      }
       gameState = "title";
     }
   }
@@ -672,8 +738,8 @@ function mousePressed() {
 
 function restartGame() {
   // Save high score
-  if (score > highScore) {
-    highScore = score;
+  if (finalScore > highScore) {
+    highScore = finalScore;
   }
   
   player = new Player();
@@ -684,6 +750,7 @@ function restartGame() {
   particles = [];
   powerUps = [];
   score = 0;
+  finalScore = 0;
   lives = 3;
   escapedEnemies = 0;
   gameState = "playing";
@@ -1854,6 +1921,9 @@ async function fetchLeaderboard() {
   isLoadingLeaderboard = true;
   leaderboardError = null;
   
+  // Save any current game entry before fetching
+  const currentGameEntry = leaderboardData.find(entry => entry.isCurrentGame);
+  
   try {
     console.log("Starting fetchLeaderboard function...");
     console.log("Supabase client state:", supabase);
@@ -1883,8 +1953,18 @@ async function fetchLeaderboard() {
     
     if (error) throw error;
     
-    leaderboardData = data || [];
+    // Filter out any entries with score 0
+    const filteredData = (data || []).filter(entry => entry.score > 0);
+    
+    leaderboardData = filteredData;
     console.log("Leaderboard data:", leaderboardData);
+    
+    // Re-add current game entry if it exists and has a score > 0
+    if (currentGameEntry && currentGameEntry.score > 0) {
+      leaderboardData.push(currentGameEntry);
+      // Sort by score in descending order
+      leaderboardData.sort((a, b) => b.score - a.score);
+    }
   } catch (error) {
     console.error("Error fetching leaderboard:", error);
     leaderboardError = error.message || "Failed to load leaderboard";
@@ -1894,6 +1974,12 @@ async function fetchLeaderboard() {
     console.log("Window supabase state:", window.supabase);
     console.log("SUPABASE_URL:", window.SUPABASE_URL);
     console.log("SUPABASE_KEY exists:", !!window.SUPABASE_KEY);
+    
+    // If we have a current game entry with score > 0, make sure it's still displayed
+    if (currentGameEntry && currentGameEntry.score > 0 && !leaderboardData.some(entry => entry.isCurrentGame)) {
+      leaderboardData.push(currentGameEntry);
+      leaderboardData.sort((a, b) => b.score - a.score);
+    }
   } finally {
     isLoadingLeaderboard = false;
   }
@@ -1906,12 +1992,32 @@ function showEmailForm() {
   inputMessage.textContent = '';
   inputMessage.className = '';
   shareButton.style.display = 'none';
+  
+  // Add event listener for the cancel button
+  cancelButton.onclick = hideEmailForm;
+  
+  // Add event listener for the submit button
+  submitButton.onclick = submitScore;
+  
+  // Remove any existing view leaderboard buttons
+  const existingButton = document.getElementById('view-leaderboard-button');
+  if (existingButton) {
+    existingButton.remove();
+  }
+  
+  const existingAfterSubmitButton = document.getElementById('view-leaderboard-after-submit');
+  if (existingAfterSubmitButton) {
+    existingAfterSubmitButton.remove();
+  }
 }
 
 function hideEmailForm() {
   const formElement = document.getElementById('email-input');
   formElement.style.display = 'none';
   emailInput.value = '';
+  
+  // Re-enable the submit button
+  submitButton.disabled = false;
 }
 
 async function submitScore() {
@@ -1920,6 +2026,13 @@ async function submitScore() {
   // Validate email
   if (!email || !isValidEmail(email)) {
     inputMessage.textContent = 'Please enter a valid email address';
+    inputMessage.className = 'error';
+    return;
+  }
+  
+  // Prevent submission of 0 scores
+  if (finalScore <= 0) {
+    inputMessage.textContent = 'Cannot submit a score of 0';
     inputMessage.className = 'error';
     return;
   }
@@ -1934,7 +2047,7 @@ async function submitScore() {
       .insert([
         { 
           player_email: email,
-          score: score,
+          score: finalScore,
           level_reached: level,
           enemies_destroyed: killStreak
         }
@@ -1950,10 +2063,31 @@ async function submitScore() {
     // Fetch updated leaderboard
     fetchLeaderboard();
     
+    // Add a view leaderboard button
+    let viewLeaderboardAfterSubmit;
+    
+    // Check if the button already exists
+    if (!document.getElementById('view-leaderboard-after-submit')) {
+      viewLeaderboardAfterSubmit = document.createElement('button');
+      viewLeaderboardAfterSubmit.textContent = 'View Leaderboard';
+      viewLeaderboardAfterSubmit.id = 'view-leaderboard-after-submit';
+      viewLeaderboardAfterSubmit.style.marginTop = '10px';
+      viewLeaderboardAfterSubmit.style.backgroundColor = '#6666ff';
+      document.getElementById('email-input').appendChild(viewLeaderboardAfterSubmit);
+    } else {
+      viewLeaderboardAfterSubmit = document.getElementById('view-leaderboard-after-submit');
+    }
+    
+    // Add event listener for the view leaderboard button
+    viewLeaderboardAfterSubmit.onclick = function() {
+      hideEmailForm();
+      gameState = "leaderboard";
+    };
+    
     // Hide form after a delay
     setTimeout(() => {
       hideEmailForm();
-    }, 3000);
+    }, 5000); // Increased to 5 seconds to give more time to click the button
     
   } catch (error) {
     console.error("Error submitting score:", error);
