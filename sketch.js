@@ -470,59 +470,64 @@ function drawGameOverScreen() {
   push();
   textAlign(CENTER);
   
-  // Game over text
+  // Game over text - moved slightly higher
   textSize(60);
   fill(255, 50, 50);
-  text("GAME OVER", WIDTH / 2, HEIGHT / 3);
+  text("GAME OVER", WIDTH / 2, HEIGHT / 4);
   
-  // Final score
+  // Final score - moved up
   textSize(40);
   fill(255);
-  text(`FINAL SCORE: ${score}`, WIDTH / 2, HEIGHT / 2);
+  text(`FINAL SCORE: ${score}`, WIDTH / 2, HEIGHT / 4 + 70);
   
-  // High score
+  // High score - moved up
   if (score >= highScore) {
     fill(255, 255, 0);
     textSize(30);
-    text("NEW HIGH SCORE!", WIDTH / 2, HEIGHT / 2 + 50);
+    text("NEW HIGH SCORE!", WIDTH / 2, HEIGHT / 4 + 120);
   } else {
     fill(200, 200, 200);
     textSize(24);
-    text(`High Score: ${highScore}`, WIDTH / 2, HEIGHT / 2 + 50);
+    text(`High Score: ${highScore}`, WIDTH / 2, HEIGHT / 4 + 120);
   }
   
-  // Stats
+  // Stats - adjusted spacing and moved up
   fill(200, 200, 255);
   textSize(20);
-  text(`Enemies Destroyed: ${killStreak}`, WIDTH / 2, HEIGHT / 2 + 90);
-  text(`Enemies Escaped: ${escapedEnemies}`, WIDTH / 2, HEIGHT / 2 + 120);
-  text(`Level Reached: ${level}`, WIDTH / 2, HEIGHT / 2 + 150);
+  text(`Enemies Destroyed: ${killStreak}`, WIDTH / 2, HEIGHT / 4 + 160);
+  text(`Enemies Escaped: ${escapedEnemies}`, WIDTH / 2, HEIGHT / 4 + 190);
+  text(`Level Reached: ${level}`, WIDTH / 2, HEIGHT / 4 + 220);
   
-  // Submit to leaderboard button
+  // Submit to leaderboard button - positioned below stats with proper spacing
   if (!scoreSubmitted) {
     fill(0, 150, 255);
-    rect(WIDTH / 2 - 150, HEIGHT / 2 + 180, 300, 40, 10);
+    rect(WIDTH / 2 - 150, HEIGHT / 4 + 260, 300, 40, 10);
     fill(255);
     textSize(20);
-    text("SUBMIT TO LEADERBOARD", WIDTH / 2, HEIGHT / 2 + 205);
+    text("SUBMIT TO LEADERBOARD", WIDTH / 2, HEIGHT / 4 + 285);
   } else {
     fill(0, 200, 100);
     textSize(20);
-    text("SCORE SUBMITTED!", WIDTH / 2, HEIGHT / 2 + 200);
+    text("SCORE SUBMITTED!", WIDTH / 2, HEIGHT / 4 + 280);
   }
   
-  // View leaderboard button
+  // View leaderboard button - positioned below submit button
   fill(100, 100, 255);
-  rect(WIDTH / 2 - 100, HEIGHT / 2 + 230, 200, 40, 10);
+  rect(WIDTH / 2 - 100, HEIGHT / 4 + 320, 200, 40, 10);
   fill(255);
   textSize(20);
-  text("VIEW LEADERBOARD", WIDTH / 2, HEIGHT / 2 + 255);
+  text("VIEW LEADERBOARD", WIDTH / 2, HEIGHT / 4 + 345);
   
-  // Restart prompt - moved lower to avoid overlapping with stats
-  fill(0, 255, 200);
-  textSize(30);
+  // Restart prompt - positioned with clear space below the leaderboard button
   if (frameCount % 60 < 30) {
-    text("PRESS 'R' TO RESTART", WIDTH / 2, HEIGHT * 7/8);
+    // Create a semi-transparent background for better visibility
+    fill(0, 0, 0, 150);
+    rect(WIDTH / 2 - 200, HEIGHT / 4 + 390, 400, 50, 10);
+    
+    // Draw the text
+    fill(0, 255, 200);
+    textSize(30);
+    text("PRESS 'R' TO RESTART", WIDTH / 2, HEIGHT / 4 + 425);
   }
   
   pop();
@@ -1102,95 +1107,261 @@ class Enemy {
     let pulseSize = sin(frameCount * this.pulseRate + this.pulseOffset) * 5;
     
     if (this.type === 0) {
-      // Basic AI Ship - purple with red eyes
-      // Ship body
+      // Basic AI Ship - more menacing purple with glowing red eyes
+      // Outer glow effect
+      fill(150, 50, 200, 50 + sin(frameCount * 0.1) * 20);
+      ellipse(0, 0, this.size * 2.2 + pulseSize, this.size * 1.5 + pulseSize);
+      
+      // Ship body - more angular and threatening
       fill(150, 50, 200);
-      ellipse(0, 0, this.size * 1.5, this.size);
+      beginShape();
+      vertex(0, -this.size * 0.7);  // Front point
+      vertex(-this.size * 0.8, -this.size * 0.2);
+      vertex(-this.size * 0.9, this.size * 0.3);
+      vertex(-this.size * 0.4, this.size * 0.1);
+      vertex(0, this.size * 0.4);
+      vertex(this.size * 0.4, this.size * 0.1);
+      vertex(this.size * 0.9, this.size * 0.3);
+      vertex(this.size * 0.8, -this.size * 0.2);
+      endShape(CLOSE);
       
-      // Wings
-      fill(120, 40, 180);
-      triangle(-this.size * 0.75, 0, -this.size * 0.4, -this.size * 0.3, -this.size * 0.4, this.size * 0.3);
-      triangle(this.size * 0.75, 0, this.size * 0.4, -this.size * 0.3, this.size * 0.4, this.size * 0.3);
+      // Menacing details
+      fill(100, 30, 150);
+      beginShape();
+      vertex(0, -this.size * 0.7);
+      vertex(-this.size * 0.4, -this.size * 0.1);
+      vertex(0, this.size * 0.2);
+      vertex(this.size * 0.4, -this.size * 0.1);
+      endShape(CLOSE);
       
-      // Red glowing eyes
-      fill(255, 0, 0, 150 + sin(frameCount * 0.1) * 50);
-      ellipse(-this.size * 0.3, -this.size * 0.1, this.size * 0.3 * this.eyeSize, this.size * 0.3 * this.eyeSize);
-      ellipse(this.size * 0.3, -this.size * 0.1, this.size * 0.3 * this.eyeSize, this.size * 0.3 * this.eyeSize);
+      // Spikes
+      fill(170, 70, 220);
+      triangle(-this.size * 0.9, this.size * 0.3, -this.size * 1.2, this.size * 0.5, -this.size * 0.7, this.size * 0.5);
+      triangle(this.size * 0.9, this.size * 0.3, this.size * 1.2, this.size * 0.5, this.size * 0.7, this.size * 0.5);
       
-      // Engine glow
-      fill(200, 100, 255, 100);
-      ellipse(0, this.size * 0.4, this.size * 0.6, this.size * 0.3);
+      // Red glowing eyes - more intense
+      fill(255, 0, 0, 200 + sin(frameCount * 0.15) * 55);
+      ellipse(-this.size * 0.3, -this.size * 0.1, this.size * 0.35 * this.eyeSize, this.size * 0.35 * this.eyeSize);
+      ellipse(this.size * 0.3, -this.size * 0.1, this.size * 0.35 * this.eyeSize, this.size * 0.35 * this.eyeSize);
+      
+      // Eye glow effect
+      fill(255, 50, 50, 100);
+      ellipse(-this.size * 0.3, -this.size * 0.1, this.size * 0.6 * this.eyeSize, this.size * 0.6 * this.eyeSize);
+      ellipse(this.size * 0.3, -this.size * 0.1, this.size * 0.6 * this.eyeSize, this.size * 0.6 * this.eyeSize);
+      
+      // Engine glow - more dramatic
+      fill(200, 100, 255, 150 + sin(frameCount * 0.2) * 50);
+      ellipse(0, this.size * 0.4, this.size * 0.8, this.size * 0.4);
+      
+      // Energy tendrils
+      stroke(200, 100, 255, 100 + sin(frameCount * 0.1) * 50);
+      strokeWeight(1);
+      noFill();
+      beginShape();
+      for (let i = 0; i < 10; i++) {
+        let angle = map(i, 0, 10, 0, TWO_PI);
+        let r = this.size * 0.8 + sin(frameCount * 0.05 + i) * 5;
+        curveVertex(cos(angle) * r, sin(angle) * r);
+      }
+      endShape(CLOSE);
     } 
     else if (this.type === 1) {
-      // Hunter Ship - red with yellow eyes
-      // Ship body
+      // Hunter Ship - more aggressive red with pulsing effects
+      // Outer glow
+      fill(255, 50, 50, 50 + sin(frameCount * 0.15) * 30);
+      ellipse(0, 0, this.size * 2.5 + pulseSize, this.size * 2 + pulseSize);
+      
+      // Ship body - more predatory shape
       fill(200, 50, 50);
       beginShape();
-      vertex(0, -this.size);
-      vertex(-this.size, this.size * 0.5);
-      vertex(0, this.size * 0.2);
-      vertex(this.size, this.size * 0.5);
+      vertex(0, -this.size * 1.2);  // Sharper front
+      vertex(-this.size * 0.7, -this.size * 0.3);
+      vertex(-this.size * 1.2, this.size * 0.5);  // Extended wings
+      vertex(-this.size * 0.5, this.size * 0.2);
+      vertex(0, this.size * 0.4);
+      vertex(this.size * 0.5, this.size * 0.2);
+      vertex(this.size * 1.2, this.size * 0.5);  // Extended wings
+      vertex(this.size * 0.7, -this.size * 0.3);
       endShape(CLOSE);
       
-      // Yellow glowing eyes
-      fill(255, 255, 0, 150 + sin(frameCount * 0.2) * 50);
-      ellipse(-this.size * 0.3, -this.size * 0.2, this.size * 0.4 * this.eyeSize, this.size * 0.4 * this.eyeSize);
-      ellipse(this.size * 0.3, -this.size * 0.2, this.size * 0.4 * this.eyeSize, this.size * 0.4 * this.eyeSize);
-      
-      // Engine flames
-      fill(255, 100, 0, 150 + sin(frameCount * 0.2) * 50);
+      // Armor plates
+      fill(150, 30, 30);
       beginShape();
-      vertex(-this.size * 0.3, this.size * 0.5);
-      vertex(-this.size * 0.15, this.size);
-      vertex(0, this.size * 0.5);
-      vertex(this.size * 0.15, this.size);
-      vertex(this.size * 0.3, this.size * 0.5);
+      vertex(0, -this.size * 1.2);
+      vertex(-this.size * 0.5, -this.size * 0.4);
+      vertex(0, -this.size * 0.2);
+      vertex(this.size * 0.5, -this.size * 0.4);
       endShape(CLOSE);
-    } 
-    else if (this.type === 2) {
-      // Boss Ship - large purple with AI brain
-      // Ship body
-      fill(100, 0, 150);
-      ellipse(0, 0, this.size * 2, this.size);
       
-      // Wings
-      fill(80, 0, 120);
+      // Weapon pods
+      fill(255, 100, 100);
+      ellipse(-this.size * 0.8, this.size * 0.2, this.size * 0.3, this.size * 0.5);
+      ellipse(this.size * 0.8, this.size * 0.2, this.size * 0.3, this.size * 0.5);
+      
+      // Yellow glowing eyes - more menacing
+      fill(255, 255, 0, 200 + sin(frameCount * 0.25) * 55);
+      ellipse(-this.size * 0.3, -this.size * 0.4, this.size * 0.45 * this.eyeSize, this.size * 0.45 * this.eyeSize);
+      ellipse(this.size * 0.3, -this.size * 0.4, this.size * 0.45 * this.eyeSize, this.size * 0.45 * this.eyeSize);
+      
+      // Eye glow effect
+      fill(255, 255, 100, 120);
+      ellipse(-this.size * 0.3, -this.size * 0.4, this.size * 0.7 * this.eyeSize, this.size * 0.7 * this.eyeSize);
+      ellipse(this.size * 0.3, -this.size * 0.4, this.size * 0.7 * this.eyeSize, this.size * 0.7 * this.eyeSize);
+      
+      // Engine flames - more dynamic
+      fill(255, 100, 0, 200 + sin(frameCount * 0.2) * 55);
       beginShape();
-      vertex(-this.size, -this.size * 0.3);
-      vertex(-this.size * 1.5, 0);
-      vertex(-this.size, this.size * 0.3);
+      vertex(-this.size * 0.5, this.size * 0.5);
+      vertex(-this.size * 0.3, this.size * 0.5 + sin(frameCount * 0.2) * 10);
+      vertex(-this.size * 0.15, this.size + sin(frameCount * 0.15) * 15);
+      vertex(0, this.size * 0.5 + sin(frameCount * 0.25) * 10);
+      vertex(this.size * 0.15, this.size + sin(frameCount * 0.15) * 15);
+      vertex(this.size * 0.3, this.size * 0.5 + sin(frameCount * 0.2) * 10);
+      vertex(this.size * 0.5, this.size * 0.5);
       endShape(CLOSE);
       
-      beginShape();
-      vertex(this.size, -this.size * 0.3);
-      vertex(this.size * 1.5, 0);
-      vertex(this.size, this.size * 0.3);
-      endShape(CLOSE);
-      
-      // Central AI brain
-      fill(200, 100, 255, 150 + sin(frameCount * 0.05) * 50);
-      ellipse(0, 0, this.size * 0.8, this.size * 0.8);
-      
-      // Brain patterns
-      stroke(255, 200, 255, 100);
+      // Energy field
+      stroke(255, 150, 0, 80 + sin(frameCount * 0.1) * 40);
       strokeWeight(2);
       noFill();
       for (let i = 0; i < 3; i++) {
-        ellipse(0, 0, this.size * 0.4 + i * 10, this.size * 0.4 + i * 10);
+        ellipse(0, 0, this.size * (1.2 + i * 0.3) + sin(frameCount * 0.05 + i) * 5, 
+                      this.size * (0.8 + i * 0.2) + sin(frameCount * 0.05 + i) * 5);
+      }
+    } 
+    else if (this.type === 2) {
+      // Boss Ship - more intimidating with advanced AI visuals
+      // Outer energy field
+      fill(100, 0, 150, 50 + sin(frameCount * 0.05) * 20);
+      ellipse(0, 0, this.size * 3 + pulseSize, this.size * 1.8 + pulseSize);
+      
+      // Pulsing shield effect
+      noFill();
+      stroke(200, 100, 255, 100 + sin(frameCount * 0.07) * 50);
+      strokeWeight(3);
+      ellipse(0, 0, this.size * 2.5 + sin(frameCount * 0.05) * 10, this.size * 1.5 + sin(frameCount * 0.05) * 5);
+      
+      // Ship body - more complex and threatening
+      noStroke();
+      fill(100, 0, 150);
+      beginShape();
+      vertex(0, -this.size * 0.8);  // Front point
+      vertex(-this.size * 0.7, -this.size * 0.5);
+      vertex(-this.size * 1.2, -this.size * 0.2);
+      vertex(-this.size * 1.5, this.size * 0.3);
+      vertex(-this.size * 0.8, this.size * 0.5);
+      vertex(0, this.size * 0.3);
+      vertex(this.size * 0.8, this.size * 0.5);
+      vertex(this.size * 1.5, this.size * 0.3);
+      vertex(this.size * 1.2, -this.size * 0.2);
+      vertex(this.size * 0.7, -this.size * 0.5);
+      endShape(CLOSE);
+      
+      // Armor plates and details
+      fill(80, 0, 120);
+      beginShape();
+      vertex(0, -this.size * 0.8);
+      vertex(-this.size * 0.5, -this.size * 0.3);
+      vertex(0, this.size * 0.1);
+      vertex(this.size * 0.5, -this.size * 0.3);
+      endShape(CLOSE);
+      
+      // Weapon arrays
+      fill(150, 50, 200);
+      ellipse(-this.size * 1, this.size * 0.1, this.size * 0.4, this.size * 0.6);
+      ellipse(this.size * 1, this.size * 0.1, this.size * 0.4, this.size * 0.6);
+      
+      // Spikes
+      fill(130, 30, 180);
+      for (let i = 0; i < 5; i++) {
+        let angle = map(i, 0, 5, -PI/3, PI + PI/3);
+        let x1 = cos(angle) * this.size * 0.8;
+        let y1 = sin(angle) * this.size * 0.5;
+        let x2 = cos(angle) * this.size * 1.2;
+        let y2 = sin(angle) * this.size * 0.8;
+        triangle(x1, y1, x2, y2, x1 + cos(angle + PI/2) * this.size * 0.2, y1 + sin(angle + PI/2) * this.size * 0.2);
       }
       
-      // Health bar
-      noStroke();
-      fill(50, 50, 50);
-      rect(-this.size, -this.size * 0.8, this.size * 2, this.size * 0.15);
+      // Central AI brain - more advanced and menacing
+      fill(200, 100, 255, 180 + sin(frameCount * 0.05) * 75);
+      ellipse(0, 0, this.size * 0.9, this.size * 0.9);
       
-      fill(255, 0, 0);
-      rect(-this.size, -this.size * 0.8, this.size * 2 * (this.health / this.maxHealth), this.size * 0.15);
+      // AI core patterns - more complex
+      stroke(255, 200, 255, 150 + sin(frameCount * 0.1) * 50);
+      strokeWeight(2);
+      noFill();
+      
+      // Neural network pattern
+      for (let i = 0; i < 5; i++) {
+        let r = this.size * 0.3 + i * 0.1;
+        beginShape();
+        for (let j = 0; j < 12; j++) {
+          let angle = TWO_PI / 12 * j;
+          let x = cos(angle) * r + sin(frameCount * 0.02 + i + j) * 3;
+          let y = sin(angle) * r + cos(frameCount * 0.02 + i + j) * 3;
+          vertex(x, y);
+        }
+        endShape(CLOSE);
+      }
+      
+      // Glowing eyes - multiple eyes for boss
+      noStroke();
+      for (let i = 0; i < 3; i++) {
+        let angle = map(i, 0, 3, -PI/4, PI/4);
+        let x = cos(angle) * this.size * 0.3;
+        let y = sin(angle) * this.size * 0.3 - this.size * 0.1;
+        let eyeSize = this.size * 0.15 * this.eyeSize;
+        
+        // Eye
+        fill(255, 0, 100, 200 + sin(frameCount * 0.1 + i) * 55);
+        ellipse(x, y, eyeSize, eyeSize);
+        
+        // Eye glow
+        fill(255, 50, 150, 100);
+        ellipse(x, y, eyeSize * 1.8, eyeSize * 1.8);
+      }
+      
+      // Health bar - more dramatic
+      noStroke();
+      fill(30, 30, 30, 200);
+      rect(-this.size, -this.size * 0.9, this.size * 2, this.size * 0.15, 5);
+      
+      // Health indicator with pulsing effect
+      let healthRatio = this.health / this.maxHealth;
+      let healthColor = lerpColor(
+        color(255, 0, 0), 
+        color(0, 255, 100),
+        healthRatio
+      );
+      
+      fill(healthColor);
+      rect(-this.size, -this.size * 0.9, this.size * 2 * healthRatio, this.size * 0.15, 5);
+      
+      // Energy tendrils
+      stroke(200, 100, 255, 100 + sin(frameCount * 0.1) * 50);
+      strokeWeight(1);
+      for (let i = 0; i < 8; i++) {
+        let angle = TWO_PI / 8 * i;
+        let x1 = cos(angle) * this.size * 0.5;
+        let y1 = sin(angle) * this.size * 0.5;
+        let x2 = cos(angle) * (this.size * 1.5 + sin(frameCount * 0.05 + i) * 10);
+        let y2 = sin(angle) * (this.size * 1.0 + sin(frameCount * 0.05 + i) * 10);
+        
+        beginShape();
+        vertex(x1, y1);
+        let ctrlX1 = cos(angle + PI/8) * this.size;
+        let ctrlY1 = sin(angle + PI/8) * this.size * 0.7;
+        let ctrlX2 = cos(angle - PI/8) * this.size;
+        let ctrlY2 = sin(angle - PI/8) * this.size * 0.7;
+        bezierVertex(ctrlX1, ctrlY1, ctrlX2, ctrlY2, x2, y2);
+        endShape();
+      }
       
       // Engine glow
-      fill(200, 100, 255, 100);
-      ellipse(-this.size * 0.5, this.size * 0.4, this.size * 0.3, this.size * 0.2);
-      ellipse(this.size * 0.5, this.size * 0.4, this.size * 0.3, this.size * 0.2);
+      noStroke();
+      fill(200, 100, 255, 150 + sin(frameCount * 0.1) * 50);
+      ellipse(-this.size * 0.5, this.size * 0.5, this.size * 0.4, this.size * 0.3);
+      ellipse(this.size * 0.5, this.size * 0.5, this.size * 0.4, this.size * 0.3);
     }
     
     pop();
