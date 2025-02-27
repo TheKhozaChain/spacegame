@@ -137,10 +137,20 @@ function draw() {
   } else if (gameState === "playing") {
     // Game playing state
     // Check if game is over
-    if (lives <= 0) {
-      // Save the final score before transitioning to game over
-      finalScore = score;
+    if (lives <= 0 && gameState !== "gameOver") {
+      finalScore = score; // Save final score
       gameState = "gameOver";
+      
+      // Ensure we capture all the game stats at the moment the game is over
+      const finalGameStats = {
+        score: score,
+        level: level,
+        killStreak: killStreak
+      };
+      
+      // Store these in a safe place that won't be reset
+      window.finalGameStats = finalGameStats;
+      
       return; // Exit the draw function to prevent further updates
     }
     
@@ -197,9 +207,16 @@ function draw() {
         explosions.push(new Explosion(enemies[i].x, enemies[i].y));
         playExplosionSound();
         enemies.splice(i, 1);
-        if (lives <= 0) {
+        if (lives <= 0 && gameState !== "gameOver") {
           finalScore = score; // Save final score
           gameState = "gameOver";
+          
+          // Capture final stats
+          window.finalGameStats = {
+            score: score,
+            level: level,
+            killStreak: killStreak
+          };
         }
         continue;
       }
@@ -209,9 +226,16 @@ function draw() {
         escapedEnemies++;
         if (penalizeEscapedEnemies) {
           lives--;
-          if (lives <= 0) {
+          if (lives <= 0 && gameState !== "gameOver") {
             finalScore = score; // Save final score
             gameState = "gameOver";
+            
+            // Capture final stats
+            window.finalGameStats = {
+              score: score,
+              level: level,
+              killStreak: killStreak
+            };
           }
         }
         // Add a visual indicator at the bottom of the screen
@@ -281,8 +305,8 @@ function draw() {
             }
             
             // Apply combo multiplier
-            let finalScore = pointValue * comboMultiplier;
-            score += finalScore;
+            let pointsScored = pointValue * comboMultiplier;
+            score += pointsScored;
             
             // Update combo
             killStreak++;
@@ -290,7 +314,7 @@ function draw() {
             comboTimer = 180; // 3 seconds at 60fps
             
             // Create score popup
-            let scoreText = `+${finalScore}`;
+            let scoreText = `+${pointsScored}`;
             if (comboMultiplier > 1) {
               scoreText += ` x${comboMultiplier}`;
             }
@@ -330,9 +354,16 @@ function draw() {
         explosions.push(new Explosion(player.x, player.y));
         playExplosionSound();
         enemyBullets.splice(i, 1);
-        if (lives <= 0) {
+        if (lives <= 0 && gameState !== "gameOver") {
           finalScore = score; // Save final score
           gameState = "gameOver";
+          
+          // Capture final stats
+          window.finalGameStats = {
+            score: score,
+            level: level,
+            killStreak: killStreak
+          };
         }
       }
       
@@ -591,11 +622,30 @@ function drawLeaderboardScreen() {
       textAlign(LEFT);
     }
     
+    // Remove duplicates from leaderboard by keeping highest score per email
+    const uniqueEntries = [];
+    const emailsAdded = new Set();
+    
+    for (const entry of leaderboardData) {
+      // Always include current game entries
+      if (entry.isCurrentGame) {
+        uniqueEntries.push(entry);
+      } 
+      // For regular entries, only add if email hasn't been seen yet
+      else if (!emailsAdded.has(entry.player_email)) {
+        uniqueEntries.push(entry);
+        emailsAdded.add(entry.player_email);
+      }
+    }
+    
+    // Sort by score in descending order
+    uniqueEntries.sort((a, b) => b.score - a.score);
+    
     // Scores
     fill(255);
     textSize(16);
-    for (let i = 0; i < Math.min(leaderboardData.length, 10); i++) {
-      const entry = leaderboardData[i];
+    for (let i = 0; i < Math.min(uniqueEntries.length, 10); i++) {
+      const entry = uniqueEntries[i];
       
       // Format email display
       let displayEmail;
@@ -689,6 +739,18 @@ function mousePressed() {
     if (!scoreSubmitted &&
         mouseX > WIDTH / 2 - 150 && mouseX < WIDTH / 2 + 150 &&
         mouseY > HEIGHT / 4 + 260 && mouseY < HEIGHT / 4 + 300) {
+      
+      // Make sure we have consistent game stats
+      if (!window.finalGameStats) {
+        console.log("Creating finalGameStats before showing email form");
+        window.finalGameStats = {
+          score: finalScore,
+          level: level,
+          killStreak: killStreak
+        };
+      }
+      
+      // Pause game loop and show email form
       showEmailForm();
     }
     
@@ -702,12 +764,17 @@ function mousePressed() {
       
       // Add current game score to leaderboard data temporarily if not submitted
       if (!scoreSubmitted && finalScore > 0) {
+        // If we have saved game stats, use those
+        const currentGameScore = window.finalGameStats ? window.finalGameStats.score : finalScore;
+        const currentGameLevel = window.finalGameStats ? window.finalGameStats.level : level;
+        const currentGameKillStreak = window.finalGameStats ? window.finalGameStats.killStreak : killStreak;
+        
         // Create a temporary entry for the current game
         const tempEntry = {
           player_email: "Current Game",
-          score: finalScore,
-          level_reached: level,
-          enemies_destroyed: killStreak,
+          score: currentGameScore,
+          level_reached: currentGameLevel,
+          enemies_destroyed: currentGameKillStreak,
           isCurrentGame: true  // Flag to identify this as the current game
         };
         
@@ -741,6 +808,9 @@ function restartGame() {
   if (finalScore > highScore) {
     highScore = finalScore;
   }
+  
+  // Clear saved game stats
+  window.finalGameStats = null;
   
   player = new Player();
   enemies = [];
@@ -1949,15 +2019,32 @@ async function fetchLeaderboard() {
       .from('leaderboard')
       .select('*')
       .order('score', { ascending: false })
-      .limit(10);
+      .limit(20); // Get more entries initially to handle duplicates
     
     if (error) throw error;
     
     // Filter out any entries with score 0
     const filteredData = (data || []).filter(entry => entry.score > 0);
     
-    leaderboardData = filteredData;
-    console.log("Leaderboard data:", leaderboardData);
+    // Handle duplicate emails - keep only the highest score for each email
+    const uniqueData = [];
+    const emailsProcessed = new Set();
+    
+    // Process entries in order (highest score first)
+    for (const entry of filteredData) {
+      if (!emailsProcessed.has(entry.player_email)) {
+        uniqueData.push(entry);
+        emailsProcessed.add(entry.player_email);
+        
+        // Only keep top 10 after deduplication
+        if (uniqueData.length >= 10) {
+          break;
+        }
+      }
+    }
+    
+    leaderboardData = uniqueData;
+    console.log("Leaderboard data after deduplication:", leaderboardData);
     
     // Re-add current game entry if it exists and has a score > 0
     if (currentGameEntry && currentGameEntry.score > 0) {
@@ -1986,6 +2073,9 @@ async function fetchLeaderboard() {
 }
 
 function showEmailForm() {
+  // Ensure we're in a paused state while the form is open
+  noLoop();
+  
   const formElement = document.getElementById('email-input');
   formElement.style.display = 'block';
   emailInput.focus();
@@ -1994,7 +2084,10 @@ function showEmailForm() {
   shareButton.style.display = 'none';
   
   // Add event listener for the cancel button
-  cancelButton.onclick = hideEmailForm;
+  cancelButton.onclick = function() {
+    hideEmailForm();
+    loop();
+  };
   
   // Add event listener for the submit button
   submitButton.onclick = submitScore;
@@ -2018,6 +2111,9 @@ function hideEmailForm() {
   
   // Re-enable the submit button
   submitButton.disabled = false;
+  
+  // Resume the game loop if it was paused
+  loop();
 }
 
 async function submitScore() {
@@ -2030,12 +2126,29 @@ async function submitScore() {
     return;
   }
   
+  // Get the final game stats from our saved stats if available,
+  // otherwise fall back to the current game state
+  const gameStats = window.finalGameStats || {
+    score: finalScore,
+    level: level,
+    killStreak: killStreak
+  };
+  
+  const scoreToSubmit = gameStats.score;
+  
   // Prevent submission of 0 scores
-  if (finalScore <= 0) {
+  if (scoreToSubmit <= 0) {
     inputMessage.textContent = 'Cannot submit a score of 0';
     inputMessage.className = 'error';
     return;
   }
+  
+  // Pause game loop to prevent any further changes during submission
+  noLoop();
+  
+  // Debug display
+  console.log("Submitting score from gameStats:", gameStats);
+  console.log("Current game state - score:", score, "finalScore:", finalScore);
   
   inputMessage.textContent = 'Submitting score...';
   inputMessage.className = '';
@@ -2047,16 +2160,16 @@ async function submitScore() {
       .insert([
         { 
           player_email: email,
-          score: finalScore,
-          level_reached: level,
-          enemies_destroyed: killStreak
+          score: scoreToSubmit,
+          level_reached: gameStats.level,
+          enemies_destroyed: gameStats.killStreak
         }
       ]);
     
     if (error) throw error;
     
     scoreSubmitted = true;
-    inputMessage.textContent = 'Score submitted successfully!';
+    inputMessage.textContent = `Score ${scoreToSubmit} submitted successfully!`;
     inputMessage.className = 'success';
     shareButton.style.display = 'inline-block';
     
@@ -2094,6 +2207,9 @@ async function submitScore() {
     inputMessage.textContent = error.message || 'Failed to submit score';
     inputMessage.className = 'error';
     submitButton.disabled = false;
+    
+    // Resume game loop in case of error
+    loop();
   }
 }
 
@@ -2103,7 +2219,8 @@ function isValidEmail(email) {
 }
 
 function shareToX() {
-  const text = `I scored ${score} points and reached level ${level} in AI SPACE DEFENDER! Can you beat my score?`;
+  // Use finalScore instead of score to ensure correct value is shared
+  const text = `I scored ${finalScore} points and reached level ${level} in AI SPACE DEFENDER! Can you beat my score?`;
   const url = window.location.href;
   const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
   
