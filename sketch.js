@@ -103,9 +103,7 @@ function setup() {
     }
   } catch (e) {
     console.error("Error initializing Supabase client in sketch.js:", e);
-    console.error("window.supabase:", window.supabase);
-    console.error("window.SUPABASE_URL:", window.SUPABASE_URL);
-    console.error("window.SUPABASE_KEY exists:", !!window.SUPABASE_KEY);
+    // Removed logs with sensitive information
     leaderboardError = "Supabase client initialization failed. Please check your configuration.";
   }
   
@@ -1996,18 +1994,15 @@ async function fetchLeaderboard() {
   
   try {
     console.log("Starting fetchLeaderboard function...");
-    console.log("Supabase client state:", supabase);
-    console.log("Window supabase state:", window.supabase);
+    // Removed detailed client state logs
     
     // Check if supabase is properly initialized
     if (!supabase || typeof supabase.from !== 'function') {
-      console.error("Supabase client validation failed:");
-      console.error("- supabase exists:", !!supabase);
-      console.error("- supabase.from is a function:", supabase && typeof supabase.from === 'function');
+      console.error("Supabase client validation failed");
       
       // Try to reinitialize from window.supabase if available
       if (window.supabase && typeof window.supabase.from === 'function') {
-        console.log("Attempting to use window.supabase instead...");
+        console.log("Attempting to use window.supabase instead");
         supabase = window.supabase;
       } else {
         throw new Error("Supabase client is not properly initialized. Make sure the Supabase library is loaded and configured correctly.");
@@ -2056,11 +2051,8 @@ async function fetchLeaderboard() {
     console.error("Error fetching leaderboard:", error);
     leaderboardError = error.message || "Failed to load leaderboard";
     
-    // Additional debugging
-    console.log("Supabase client state:", supabase);
-    console.log("Window supabase state:", window.supabase);
-    console.log("SUPABASE_URL:", window.SUPABASE_URL);
-    console.log("SUPABASE_KEY exists:", !!window.SUPABASE_KEY);
+    // Additional debugging (removed sensitive information)
+    console.log("Supabase client initialized:", !!supabase);
     
     // If we have a current game entry with score > 0, make sure it's still displayed
     if (currentGameEntry && currentGameEntry.score > 0 && !leaderboardData.some(entry => entry.isCurrentGame)) {
