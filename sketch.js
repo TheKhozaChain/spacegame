@@ -149,6 +149,8 @@ function draw() {
       // Store these in a safe place that won't be reset
       window.finalGameStats = finalGameStats;
       
+      console.log("Game over! Final stats captured:", window.finalGameStats);
+      
       return; // Exit the draw function to prevent further updates
     }
     
@@ -215,6 +217,8 @@ function draw() {
             level: level,
             killStreak: killStreak
           };
+          
+          console.log("Game over! Final stats captured:", window.finalGameStats);
         }
         continue;
       }
@@ -234,6 +238,8 @@ function draw() {
               level: level,
               killStreak: killStreak
             };
+            
+            console.log("Game over! Final stats captured:", window.finalGameStats);
           }
         }
         // Add a visual indicator at the bottom of the screen
@@ -362,6 +368,8 @@ function draw() {
             level: level,
             killStreak: killStreak
           };
+          
+          console.log("Game over! Final stats captured:", window.finalGameStats);
         }
       }
       
@@ -508,24 +516,31 @@ function drawTitleScreen() {
 }
 
 function drawGameOverScreen() {
-  push();
-  textAlign(CENTER);
+  // Game over screen
+  background(0, 0, 0, 150);
   
-  // Game over text - moved slightly higher
-  textSize(60);
+  // Game over text
   fill(255, 50, 50);
-  text("GAME OVER", WIDTH / 2, HEIGHT / 4);
+  textSize(48);
+  textAlign(CENTER, CENTER);
+  text("GAME OVER", WIDTH / 2, HEIGHT / 4 - 20);
   
-  // Final score - moved up
-  textSize(40);
-  fill(255);
-  text(`FINAL SCORE: ${finalScore}`, WIDTH / 2, HEIGHT / 4 + 70);
+  // Final score
+  fill(255, 255, 255);
+  textSize(32);
   
-  // High score - moved up
-  if (finalScore >= highScore) {
-    fill(255, 255, 0);
-    textSize(30);
-    text("NEW HIGH SCORE!", WIDTH / 2, HEIGHT / 4 + 120);
+  // Use the stored final stats if available
+  const displayKillStreak = window.finalGameStats ? window.finalGameStats.killStreak : killStreak;
+  
+  // Display final score
+  text(`Final Score: ${finalScore}`, WIDTH / 2, HEIGHT / 4 + 40);
+  
+  // High score
+  if (finalScore > highScore) {
+    highScore = finalScore;
+    fill(255, 215, 0); // Gold color
+    textSize(28);
+    text("NEW HIGH SCORE!", WIDTH / 2, HEIGHT / 4 + 80);
   } else {
     fill(200, 200, 200);
     textSize(24);
@@ -535,7 +550,7 @@ function drawGameOverScreen() {
   // Stats - adjusted spacing and moved up
   fill(200, 200, 255);
   textSize(20);
-  text(`Enemies Destroyed: ${killStreak}`, WIDTH / 2, HEIGHT / 4 + 160);
+  text(`Enemies Destroyed: ${displayKillStreak}`, WIDTH / 2, HEIGHT / 4 + 160);
   text(`Enemies Escaped: ${escapedEnemies}`, WIDTH / 2, HEIGHT / 4 + 190);
   text(`Level Reached: ${level}`, WIDTH / 2, HEIGHT / 4 + 220);
   
@@ -2118,14 +2133,18 @@ async function submitScore() {
     return;
   }
   
-  // Get the final game stats from our saved stats if available,
-  // otherwise fall back to the current game state
-  const gameStats = window.finalGameStats || {
-    score: finalScore,
-    level: level,
-    killStreak: killStreak
-  };
+  // Always use window.finalGameStats if available to ensure we have the correct values
+  // from when the game ended
+  if (!window.finalGameStats) {
+    console.warn("window.finalGameStats is not available, creating it now");
+    window.finalGameStats = {
+      score: finalScore,
+      level: level,
+      killStreak: killStreak
+    };
+  }
   
+  const gameStats = window.finalGameStats;
   const scoreToSubmit = gameStats.score;
   
   // Prevent submission of 0 scores
@@ -2140,7 +2159,8 @@ async function submitScore() {
   
   // Debug display
   console.log("Submitting score from gameStats:", gameStats);
-  console.log("Current game state - score:", score, "finalScore:", finalScore);
+  console.log("Current game state - score:", score, "finalScore:", finalScore, "killStreak:", killStreak);
+  console.log("window.finalGameStats:", window.finalGameStats);
   
   inputMessage.textContent = 'Submitting score...';
   inputMessage.className = '';
