@@ -80,31 +80,34 @@ function setup() {
   // Initialize Supabase client
   try {
     console.log("Initializing Supabase client in setup...");
-    console.log("window.supabase exists:", !!window.supabase);
     
     // Check if window.supabase exists and has the required methods
     if (window.supabase && typeof window.supabase.from === 'function') {
       supabase = window.supabase;
       console.log("Supabase client successfully initialized in sketch.js");
     } else {
-      // Try to create a new client if window.supabase doesn't exist but we have the URL and key
-      if (window.SUPABASE_URL && window.SUPABASE_KEY && window.supabase) {
+      // Try to create a new client if we have the URL and key
+      if (window.SUPABASE_URL && window.SUPABASE_KEY) {
         console.log("Attempting to create a new Supabase client...");
         try {
-          supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-          console.log("Successfully created new Supabase client");
+          // Make sure the Supabase library is loaded
+          if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+            supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+            console.log("Successfully created new Supabase client");
+          } else {
+            throw new Error("Supabase library not loaded correctly. Make sure the Supabase script is included before sketch.js");
+          }
         } catch (createError) {
           console.error("Error creating Supabase client:", createError);
           throw createError;
         }
       } else {
-        throw new Error("Supabase client is not properly initialized or doesn't have the required methods");
+        throw new Error("Supabase configuration missing. Make sure SUPABASE_URL and SUPABASE_KEY are defined.");
       }
     }
   } catch (e) {
     console.error("Error initializing Supabase client in sketch.js:", e);
-    // Removed logs with sensitive information
-    leaderboardError = "Supabase client initialization failed. Please check your configuration.";
+    leaderboardError = "Supabase client initialization failed: " + e.message;
   }
   
   // Get DOM elements
@@ -2009,18 +2012,31 @@ async function fetchLeaderboard() {
   
   try {
     console.log("Starting fetchLeaderboard function...");
-    // Removed detailed client state logs
     
     // Check if supabase is properly initialized
     if (!supabase || typeof supabase.from !== 'function') {
       console.error("Supabase client validation failed");
       
-      // Try to reinitialize from window.supabase if available
-      if (window.supabase && typeof window.supabase.from === 'function') {
-        console.log("Attempting to use window.supabase instead");
-        supabase = window.supabase;
+      // Try to reinitialize Supabase
+      if (window.SUPABASE_URL && window.SUPABASE_KEY) {
+        console.log("Attempting to reinitialize Supabase client");
+        
+        try {
+          // Check if the Supabase library is available
+          if (typeof window.supabase !== 'undefined' && typeof window.supabase.createClient === 'function') {
+            supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+            console.log("Successfully reinitialized Supabase client");
+          } else if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+            supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+            console.log("Successfully reinitialized Supabase client using global supabase object");
+          } else {
+            throw new Error("Supabase library not available. Make sure the Supabase script is loaded correctly.");
+          }
+        } catch (error) {
+          throw new Error("Failed to reinitialize Supabase client: " + error.message);
+        }
       } else {
-        throw new Error("Supabase client is not properly initialized. Make sure the Supabase library is loaded and configured correctly.");
+        throw new Error("Supabase configuration missing. Make sure SUPABASE_URL and SUPABASE_KEY are defined.");
       }
     }
     

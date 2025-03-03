@@ -68,8 +68,22 @@
     <button id="share-button" style="display: none;">Share on Twitter</button>
   </div>
   <script type="module">
-    // Import Supabase configuration
-    import { SUPABASE_URL, SUPABASE_KEY } from './supabase-config.js';
+    // Import Supabase configuration with fallback for when the file is not available
+    let SUPABASE_URL, SUPABASE_KEY;
+    
+    try {
+      // Try to import from the config file
+      const config = await import('./supabase-config.js');
+      SUPABASE_URL = config.SUPABASE_URL;
+      SUPABASE_KEY = config.SUPABASE_KEY;
+      console.log("Successfully imported Supabase configuration from file");
+    } catch (error) {
+      // Fallback configuration for public deployment
+      // Using the anon/public key is safe as long as you have proper Row Level Security configured
+      console.log("Could not import Supabase configuration, using fallback");
+      SUPABASE_URL = 'https://gnhtszddvxzszcipcydh.supabase.co';
+      SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImduaHRzemRkdnh6c3pjaXBjeWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1NTAxMTksImV4cCI6MjA1NjEyNjExOX0.cF8U1uJxRt1nuoBax6K8PTs5kZGYMEfeRN77bzi9thE';
+    }
     
     // Make configuration available to the sketch.js file
     window.SUPABASE_URL = SUPABASE_URL;
