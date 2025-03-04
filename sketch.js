@@ -2099,6 +2099,19 @@ function showEmailForm() {
   // Ensure we're in a paused state while the form is open
   noLoop();
   
+  // Make sure we have the correct final score saved
+  if (!window.finalGameStats || window.finalGameStats.score <= 0) {
+    console.log("Creating or updating finalGameStats with current finalScore:", finalScore);
+    window.finalGameStats = {
+      score: finalScore > 0 ? finalScore : score,
+      level: level,
+      killStreak: killStreak
+    };
+  }
+  
+  console.log("Final game stats before showing email form:", window.finalGameStats);
+  console.log("Current finalScore:", finalScore, "Current score:", score);
+  
   // Check if Supabase is initialized before showing the form
   if (!supabase || typeof supabase.from !== 'function') {
     console.log("Supabase client not initialized, attempting to reinitialize...");
@@ -2188,8 +2201,16 @@ async function submitScore() {
   
   // Prevent submission of 0 scores
   if (scoreToSubmit <= 0) {
-    inputMessage.textContent = 'Cannot submit a score of 0';
+    inputMessage.textContent = `Cannot submit a score of 0. Current finalScore: ${finalScore}`;
     inputMessage.className = 'error';
+    
+    // If we have a non-zero finalScore but gameStats.score is 0, fix it
+    if (finalScore > 0 && scoreToSubmit <= 0) {
+      console.log("Fixing gameStats with current finalScore:", finalScore);
+      window.finalGameStats.score = finalScore;
+      inputMessage.textContent = 'Score fixed. Please try submitting again.';
+      return;
+    }
     return;
   }
   
