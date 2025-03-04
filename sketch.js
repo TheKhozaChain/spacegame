@@ -2099,6 +2099,29 @@ function showEmailForm() {
   // Ensure we're in a paused state while the form is open
   noLoop();
   
+  // Check if Supabase is initialized before showing the form
+  if (!supabase || typeof supabase.from !== 'function') {
+    console.log("Supabase client not initialized, attempting to reinitialize...");
+    
+    try {
+      // Try to get the client from window
+      if (window.supabase && typeof window.supabase.from === 'function') {
+        supabase = window.supabase;
+        console.log("Retrieved Supabase client from window object for email form");
+      } else {
+        console.error("Supabase client not available on window object");
+        alert("Unable to connect to leaderboard service. Please refresh the page and try again.");
+        loop(); // Resume game loop if we can't show the form
+        return;
+      }
+    } catch (e) {
+      console.error("Error accessing Supabase client:", e);
+      alert("Unable to connect to leaderboard service. Please refresh the page and try again.");
+      loop(); // Resume game loop if we can't show the form
+      return;
+    }
+  }
+  
   const formElement = document.getElementById('email-input');
   formElement.style.display = 'block';
   emailInput.focus();
@@ -2183,6 +2206,36 @@ async function submitScore() {
   submitButton.disabled = true;
   
   try {
+    // Check if supabase is properly initialized
+    if (!supabase || typeof supabase.from !== 'function') {
+      console.log("Supabase client not initialized, attempting to reinitialize...");
+      
+      // Try to get the client from window
+      if (window.supabase && typeof window.supabase.from === 'function') {
+        supabase = window.supabase;
+        console.log("Retrieved Supabase client from window object");
+      } 
+      // If still not available, try to create a new client
+      else if (window.SUPABASE_URL && window.SUPABASE_KEY) {
+        try {
+          // Check if the global supabase object has createClient method
+          if (typeof window.supabase !== 'undefined') {
+            supabase = window.supabase;
+            console.log("Using existing window.supabase object");
+          } else {
+            console.error("Supabase client not available on window object");
+            throw new Error("Supabase client not available. Please refresh the page and try again.");
+          }
+        } catch (e) {
+          console.error("Error accessing Supabase client:", e);
+          throw new Error("Supabase library not available. Please refresh the page and try again.");
+        }
+      } else {
+        throw new Error("Supabase configuration missing. Please refresh the page and try again.");
+      }
+    }
+    
+    // Now attempt to use the supabase client
     const { data, error } = await supabase
       .from('leaderboard')
       .insert([
