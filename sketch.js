@@ -828,6 +828,9 @@ function restartGame() {
   // Clear saved game stats
   window.finalGameStats = null;
   
+  // Save the current Supabase client reference before resetting
+  const currentSupabase = supabase;
+  
   player = new Player();
   enemies = [];
   playerBullets = [];
@@ -853,6 +856,9 @@ function restartGame() {
   tripleShot = false;
   tripleShotTime = 0;
   scoreSubmitted = false;
+  
+  // Restore the Supabase client reference
+  supabase = currentSupabase;
   
   console.log("Game restarted!");
 }
@@ -2111,6 +2117,12 @@ function showEmailForm() {
   
   console.log("Final game stats before showing email form:", window.finalGameStats);
   console.log("Current finalScore:", finalScore, "Current score:", score);
+  
+  // Always try to get the latest Supabase client from window
+  if (window.supabase && typeof window.supabase.from === 'function') {
+    console.log("Refreshing Supabase client from window object");
+    supabase = window.supabase;
+  }
   
   // Check if Supabase is initialized before showing the form
   if (!supabase || typeof supabase.from !== 'function') {
