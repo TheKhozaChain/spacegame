@@ -89,27 +89,38 @@
     window.SUPABASE_URL = SUPABASE_URL;
     window.SUPABASE_KEY = SUPABASE_KEY;
     
+    // FIXING SUPABASE CONNECTION ISSUE:
     // Create the Supabase client and make it available globally
-    try {
-      console.log("Initializing Supabase client in index.html...");
-      
-      // Check if supabase is available
-      if (typeof supabase === 'undefined') {
-        console.error("Error: supabase is not defined. Make sure the Supabase library is loaded correctly.");
-      } else {
-        // Create the client
-        window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // This function can be called again if the connection is lost
+    window.initSupabase = function() {
+      try {
+        console.log("Initializing Supabase client in index.html...");
         
-        // Verify the client was created correctly
-        if (window.supabase && typeof window.supabase.from === 'function') {
-          console.log("Supabase client successfully initialized in index.html");
+        // Check if supabase is available
+        if (typeof supabase === 'undefined') {
+          console.error("Error: supabase is not defined. Make sure the Supabase library is loaded correctly.");
+          return false;
         } else {
-          console.error("Supabase client was created but doesn't have the expected methods");
+          // Create the client
+          window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+          
+          // Verify the client was created correctly
+          if (window.supabase && typeof window.supabase.from === 'function') {
+            console.log("Supabase client successfully initialized in index.html");
+            return true;
+          } else {
+            console.error("Supabase client was created but doesn't have the expected methods");
+            return false;
+          }
         }
+      } catch (error) {
+        console.error("Error initializing Supabase client in index.html:", error);
+        return false;
       }
-    } catch (error) {
-      console.error("Error initializing Supabase client in index.html:", error);
-    }
+    };
+    
+    // Initialize Supabase on page load
+    window.initSupabase();
   </script>
   <script src="sketch.js"></script>
 </body>
