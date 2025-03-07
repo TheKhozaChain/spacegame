@@ -106,6 +106,12 @@ function setup() {
         throw new Error("Supabase configuration missing. Make sure SUPABASE_URL and SUPABASE_KEY are defined.");
       }
     }
+    
+    // Schedule a cleanup of duplicate entries after initialization
+    setTimeout(() => {
+      fetchAndCleanupLeaderboard();
+    }, 5000); // Wait 5 seconds to make sure everything is loaded
+    
   } catch (e) {
     console.error("Error initializing Supabase client in sketch.js:", e);
     leaderboardError = "Supabase client initialization failed: " + e.message;
@@ -2216,6 +2222,11 @@ async function fetchLeaderboard() {
     leaderboardData = uniqueData;
     console.log("Leaderboard data after deduplication:", leaderboardData);
     
+    // If we have multiple entries for the same email in the database, clean them up
+    if (filteredData.length > uniqueData.length) {
+      cleanupDuplicateEntries(filteredData);
+    }
+    
     // Re-add current game entry if it exists and has a score > 0
     if (currentGameEntry && currentGameEntry.score > 0) {
       leaderboardData.push(currentGameEntry);
@@ -2529,20 +2540,87 @@ async function submitScore() {
       console.log("FINAL SAFETY - Using score:", scoreToSubmit);
     }
     
-    // Now attempt to use the supabase client
-    const { data, error } = await supabase
+    // First check if this email already exists in the leaderboard
+    console.log("Checking for existing entries with email:", email);
+    const { data: existingEntries, error: checkError } = await supabase
       .from('leaderboard')
-      .insert([
-        { 
-          player_email: email,
-          score: scoreToSubmit,
-          level_reached: gameStats.level,
-          enemies_destroyed: gameStats.killStreak
+      .select('*')
+      .eq('player_email', email);
+      
+    if (checkError) {
+      console.error("Error checking for existing entries:", checkError);
+      // Continue with submission anyway
+    } else if (existingEntries && existingEntries.length > 0) {
+      console.log("Found existing entries:", existingEntries.length);
+      
+      // Find highest existing score
+      let highestExisting = 0;
+      let highestEntryId = null;
+      
+      for (const entry of existingEntries) {
+        if (entry.score > highestExisting) {
+          highestExisting = entry.score;
+          highestEntryId = entry.id;
         }
-      ]);
+      }
+      
+      console.log("Highest existing score:", highestExisting, "New score:", scoreToSubmit);
+      
+      if (scoreToSubmit > highestExisting) {
+        // If new score is higher, update the highest entry
+        console.log("Updating existing entry with higher score");
+        const { error: updateError } = await supabase
+          .from('leaderboard')
+          .update({ 
+            score: scoreToSubmit,
+            level_reached: gameStats.level,
+            enemies_destroyed: gameStats.killStreak 
+          })
+          .eq('id', highestEntryId);
+          
+        if (updateError) {
+          console.error("Error updating entry:", updateError);
+          throw updateError;
+        }
+      } else {
+        // Keep the highest score, but clean up duplicates
+        console.log("Cleaning up duplicates, keeping highest score");
+        
+        // Delete all entries except the one with highest score
+        for (const entry of existingEntries) {
+          if (entry.id !== highestEntryId) {
+            const { error: deleteError } = await supabase
+              .from('leaderboard')
+              .delete()
+              .eq('id', entry.id);
+              
+            if (deleteError) {
+              console.error("Error deleting duplicate:", deleteError);
+            }
+          }
+        }
+        
+        // No need to insert a new record since we're keeping the higher score
+        return;
+      }
+    } else {
+      // No existing entries, insert a new one
+      console.log("No existing entries, inserting new score");
+      const { data, error } = await supabase
+        .from('leaderboard')
+        .insert([
+          { 
+            player_email: email,
+            score: scoreToSubmit,
+            level_reached: gameStats.level,
+            enemies_destroyed: gameStats.killStreak
+          }
+        ]);
+        
+      if (error) throw error;
+    }
     
-    if (error) throw error;
-    
+    // Score was submitted or updated successfully
     scoreSubmitted = true;
     inputMessage.textContent = `Score ${scoreToSubmit} submitted successfully!`;
     inputMessage.className = 'success';
@@ -2591,6 +2669,95 @@ async function submitScore() {
 function isValidEmail(email) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
+}
+
+// Function to fetch all leaderboard entries and clean up duplicates
+async function fetchAndCleanupLeaderboard() {
+  console.log("Starting leaderboard cleanup process");
+  
+  try {
+    // Get a fresh Supabase connection
+    if (window.initSupabase && typeof window.initSupabase === 'function') {
+      window.initSupabase();
+      supabase = window.supabase;
+    }
+    
+    if (!supabase || typeof supabase.from !== 'function') {
+      console.error("No valid Supabase connection for cleanup");
+      return;
+    }
+    
+    // Fetch all entries (no limit)
+    const { data: allEntries, error } = await supabase
+      .from('leaderboard')
+      .select('*');
+      
+    if (error) {
+      console.error("Error fetching entries for cleanup:", error);
+      return;
+    }
+    
+    if (!allEntries || allEntries.length === 0) {
+      console.log("No entries found, nothing to clean up");
+      return;
+    }
+    
+    console.log(`Found ${allEntries.length} total entries in leaderboard`);
+    
+    // If we have entries, clean up duplicates
+    await cleanupDuplicateEntries(allEntries);
+    
+  } catch (error) {
+    console.error("Error in fetchAndCleanupLeaderboard:", error);
+  }
+}
+
+// Function to clean up duplicate entries in the database
+async function cleanupDuplicateEntries(allEntries) {
+  console.log("Cleaning up duplicate entries in database");
+  
+  try {
+    // Group entries by email
+    const entriesByEmail = {};
+    
+    for (const entry of allEntries) {
+      const email = entry.player_email;
+      if (!entriesByEmail[email]) {
+        entriesByEmail[email] = [];
+      }
+      entriesByEmail[email].push(entry);
+    }
+    
+    // For each email with multiple entries, keep only the highest score
+    for (const email in entriesByEmail) {
+      const entries = entriesByEmail[email];
+      
+      if (entries.length > 1) {
+        console.log(`Found ${entries.length} entries for email ${email}`);
+        
+        // Sort by score (highest first)
+        entries.sort((a, b) => b.score - a.score);
+        
+        // Keep the highest score, delete the rest
+        for (let i = 1; i < entries.length; i++) {
+          console.log(`Deleting duplicate entry id ${entries[i].id} with score ${entries[i].score}`);
+          
+          const { error } = await supabase
+            .from('leaderboard')
+            .delete()
+            .eq('id', entries[i].id);
+            
+          if (error) {
+            console.error(`Error deleting duplicate entry: ${error.message}`);
+          }
+        }
+      }
+    }
+    
+    console.log("Finished cleaning up duplicate entries");
+  } catch (error) {
+    console.error("Error in cleanupDuplicateEntries:", error);
+  }
 }
 
 function shareToX() {
