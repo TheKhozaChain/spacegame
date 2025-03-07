@@ -18,6 +18,7 @@ let level = 1;
 let killStreak = 0;
 let shieldActive = false;
 let shieldTime = 0;
+let invincibilityFrames = 0; // Added to prevent multiple hits in the same frame
 let bossSpawned = false;
 let bossDefeated = 0;
 let comboMultiplier = 1;
@@ -221,12 +222,16 @@ function draw() {
             ));
           }
           enemies.splice(i, 1);
-        } else {
+        } else if (invincibilityFrames <= 0) { // Only take damage if not invincible
           // No shield, reduce lives
           lives--;
           explosions.push(new Explosion(enemies[i].x, enemies[i].y));
           playExplosionSound();
           enemies.splice(i, 1);
+          
+          // Give invincibility frames to prevent multiple hits at once
+          invincibilityFrames = 60; // 1 second invincibility
+          
           if (lives <= 0 && gameState !== "gameOver") {
             finalScore = score; // Save final score
             gameState = "gameOver";
@@ -240,6 +245,11 @@ function draw() {
             
             console.log("Game over! Final stats captured:", window.finalGameStats);
           }
+        } else {
+          // Player is in invincibility frames but still destroy the enemy
+          explosions.push(new Explosion(enemies[i].x, enemies[i].y));
+          playExplosionSound();
+          enemies.splice(i, 1);
         }
         continue;
       }
@@ -321,6 +331,10 @@ function draw() {
                 explosionColor = {r: 200, g: 0, b: 255};
                 bossDefeated++;
                 
+                // Give temporary shield when boss is defeated for safety
+                shieldActive = true;
+                shieldTime = 120; // 2 seconds at 60fps
+                
                 // Spawn power-ups when boss is defeated
                 for (let k = 0; k < 3; k++) {
                   powerUps.push(new PowerUp(enemies[j].x + random(-30, 30), enemies[j].y + random(-30, 30)));
@@ -389,12 +403,16 @@ function draw() {
             ));
           }
           enemyBullets.splice(i, 1);
-        } else {
+        } else if (invincibilityFrames <= 0) { // Only take damage if not invincible
           // No shield, reduce lives
           lives--;
           explosions.push(new Explosion(player.x, player.y));
           playExplosionSound();
           enemyBullets.splice(i, 1);
+          
+          // Set invincibility frames to prevent multiple hits
+          invincibilityFrames = 60; // 1 second invincibility
+          
           if (lives <= 0 && gameState !== "gameOver") {
             finalScore = score; // Save final score
             gameState = "gameOver";
@@ -408,6 +426,9 @@ function draw() {
             
             console.log("Game over! Final stats captured:", window.finalGameStats);
           }
+        } else {
+          // Player is in invincibility frames but still destroy the bullet
+          enemyBullets.splice(i, 1);
         }
       }
       
@@ -939,7 +960,15 @@ function levelUp() {
   // Make game harder
   if (level % 5 === 0) {
     // Every 5 levels, spawn a boss instead of making the game harder
-    spawnBoss();
+    
+    // Add temporary shield when boss spawns to prevent instant deaths
+    shieldActive = true;
+    shieldTime = 180; // 3 seconds at 60fps
+    
+    // Schedule boss spawn after a short delay to prevent unfair deaths
+    setTimeout(() => {
+      spawnBoss();
+    }, 1000);
   } else {
     // Otherwise increase enemy spawn rate and speed
     for (let enemy of enemies) {
@@ -1006,6 +1035,11 @@ class Player {
     // Constrain player to screen
     this.x = constrain(this.x, this.size, WIDTH - this.size);
     this.y = constrain(this.y, this.size, HEIGHT - this.size);
+    
+    // Update invincibility frames to prevent multiple hits in the same frame
+    if (invincibilityFrames > 0) {
+      invincibilityFrames--;
+    }
     
     // Add engine thruster particles
     if (frameCount % 2 === 0) {
@@ -1121,6 +1155,17 @@ class Player {
         let x = cos(angle) * this.size * 1.2;
         let y = sin(angle) * this.size * 1.2;
         particles.push(new Particle(this.x + x, this.y + y, 0, 200, 255, 40));
+      }
+    }
+    
+    // Visual indicator for invincibility frames
+    if (invincibilityFrames > 0) {
+      // Draw invincibility effect (blinking/transparency)
+      if (frameCount % 4 < 2) { // Blink every few frames
+        noFill();
+        stroke(255, 255, 0, 150 + sin(frameCount * 0.3) * 50);
+        strokeWeight(2);
+        ellipse(0, 0, this.size * 2, this.size * 2);
       }
     }
     
