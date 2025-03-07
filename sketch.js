@@ -2019,34 +2019,72 @@ async function fetchLeaderboard() {
   try {
     console.log("Starting fetchLeaderboard function...");
     
-    // Check if supabase is properly initialized
-    if (!supabase || typeof supabase.from !== 'function') {
-      console.error("Supabase client validation failed");
-      
-      // Try to reinitialize Supabase
-      if (window.SUPABASE_URL && window.SUPABASE_KEY) {
-        console.log("Attempting to reinitialize Supabase client");
-        
-        try {
-          // Check if the Supabase library is available
-          if (typeof window.supabase !== 'undefined' && typeof window.supabase.createClient === 'function') {
-            supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-            console.log("Successfully reinitialized Supabase client");
-          } else if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
-            supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-            console.log("Successfully reinitialized Supabase client using global supabase object");
-          } else {
-            throw new Error("Supabase library not available. Make sure the Supabase script is loaded correctly.");
-          }
-        } catch (error) {
-          throw new Error("Failed to reinitialize Supabase client: " + error.message);
-        }
-      } else {
-        throw new Error("Supabase configuration missing. Make sure SUPABASE_URL and SUPABASE_KEY are defined.");
+    // ENHANCED ROBUST SUPABASE CONNECTION FIX:
+    // Always ensure we have a working Supabase client before fetching
+    let supabaseConnected = false;
+    
+    // 1. First attempt: Use window.initSupabase if available (most reliable method)
+    if (window.initSupabase && typeof window.initSupabase === 'function') {
+      console.log("Initializing fresh Supabase client using window.initSupabase");
+      const success = window.initSupabase();
+      if (success) {
+        supabase = window.supabase;
+        console.log("Successfully initialized fresh Supabase client");
+        supabaseConnected = true;
       }
     }
     
-    console.log("Attempting to fetch leaderboard data...");
+    // 2. Second attempt: Try to access the already created client
+    if (!supabaseConnected && window.supabase && typeof window.supabase.from === 'function') {
+      console.log("Using existing Supabase client from window object");
+      supabase = window.supabase;
+      supabaseConnected = true;
+    }
+    
+    // 3. Third attempt: Create a new client directly using the library
+    if (!supabaseConnected && window.SUPABASE_URL && window.SUPABASE_KEY) {
+      console.log("Creating new Supabase client directly for fetchLeaderboard");
+      try {
+        // Verify the supabase library is loaded properly
+        if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+          supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+          
+          // Verify the client was created successfully
+          if (supabase && typeof supabase.from === 'function') {
+            console.log("Successfully created new Supabase client");
+            // Store it in the window for future use
+            window.supabase = supabase;
+            supabaseConnected = true;
+          }
+        }
+      } catch (e) {
+        console.error("Error creating new Supabase client:", e);
+      }
+    }
+    
+    // If still not connected, try one more approach with global scope
+    if (!supabaseConnected) {
+      console.log("Attempting last resort method to create Supabase client");
+      try {
+        // Try to create a client using the global object if it exists
+        if (typeof window.supabase === 'object' && typeof window.supabase.createClient === 'function') {
+          supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+          supabaseConnected = true;
+        } else if (typeof supabase === 'object' && typeof supabase.createClient === 'function') {
+          supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+          supabaseConnected = true;
+        }
+      } catch (e) {
+        console.error("Last resort method failed:", e);
+      }
+    }
+    
+    // If all attempts failed, throw an error
+    if (!supabaseConnected || !supabase || typeof supabase.from !== 'function') {
+      throw new Error("Unable to connect to leaderboard service. Please refresh the page and try again.");
+    }
+    
+    console.log("Attempting to fetch leaderboard data with a valid Supabase client...");
     const { data, error } = await supabase
       .from('leaderboard')
       .select('*')
@@ -2118,37 +2156,69 @@ function showEmailForm() {
   console.log("Final game stats before showing email form:", window.finalGameStats);
   console.log("Current finalScore:", finalScore, "Current score:", score);
   
-  // FIXING SUPABASE CONNECTION ISSUE:
-  // First try to reinitialize Supabase using the function in index.html
+  // ENHANCED ROBUST SUPABASE CONNECTION FIX:
+  // Always force a fresh Supabase client initialization before showing the form
+  let supabaseConnected = false;
+  
+  // 1. First attempt: Use window.initSupabase if available (most reliable method)
   if (window.initSupabase && typeof window.initSupabase === 'function') {
-    console.log("Reinitializing Supabase client using window.initSupabase");
+    console.log("Initializing fresh Supabase client using window.initSupabase");
     const success = window.initSupabase();
     if (success) {
       supabase = window.supabase;
-      console.log("Successfully reinitialized Supabase client");
-    }
-  }
-  // Then try to get the Supabase client from the window object
-  else if (window.supabase && typeof window.supabase.from === 'function') {
-    console.log("Refreshing Supabase client from window object");
-    supabase = window.supabase;
-  } 
-  // If that fails, try to recreate the client using the URL and key
-  else if (window.SUPABASE_URL && window.SUPABASE_KEY && typeof supabase !== 'undefined') {
-    try {
-      console.log("Recreating Supabase client using URL and key");
-      // Access the createClient method from the global supabase object
-      supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-      console.log("Successfully recreated Supabase client");
-    } catch (e) {
-      console.error("Error recreating Supabase client:", e);
+      console.log("Successfully initialized fresh Supabase client");
+      supabaseConnected = true;
     }
   }
   
-  // FIXING SUPABASE CONNECTION ISSUE:
-  // Check if Supabase is initialized before showing the form
-  if (!supabase || typeof supabase.from !== 'function') {
-    console.log("Supabase client still not initialized, cannot show form");
+  // 2. Second attempt: Try to access the already created client
+  if (!supabaseConnected && window.supabase && typeof window.supabase.from === 'function') {
+    console.log("Using existing Supabase client from window object");
+    supabase = window.supabase;
+    supabaseConnected = true;
+  }
+  
+  // 3. Third attempt: Create a new client directly using the library
+  if (!supabaseConnected && window.SUPABASE_URL && window.SUPABASE_KEY) {
+    console.log("Creating new Supabase client directly");
+    try {
+      // Verify the supabase library is loaded properly
+      if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+        supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+        
+        // Verify the client was created successfully
+        if (supabase && typeof supabase.from === 'function') {
+          console.log("Successfully created new Supabase client");
+          // Store it in the window for future use
+          window.supabase = supabase;
+          supabaseConnected = true;
+        }
+      }
+    } catch (e) {
+      console.error("Error creating new Supabase client:", e);
+    }
+  }
+  
+  // If still not connected, try one more approach with global scope
+  if (!supabaseConnected) {
+    console.log("Attempting last resort method to create Supabase client");
+    try {
+      // Try to create a client using the global object if it exists
+      if (typeof window.supabase === 'object' && typeof window.supabase.createClient === 'function') {
+        supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+        supabaseConnected = true;
+      } else if (typeof supabase === 'object' && typeof supabase.createClient === 'function') {
+        supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+        supabaseConnected = true;
+      }
+    } catch (e) {
+      console.error("Last resort method failed:", e);
+    }
+  }
+  
+  // If all attempts failed, show an alert and return to the game
+  if (!supabaseConnected || !supabase || typeof supabase.from !== 'function') {
+    console.error("Supabase client still not initialized, cannot show form");
     alert("Unable to connect to leaderboard service. Please refresh the page and try again.");
     loop(); // Resume game loop if we can't show the form
     return;
@@ -2246,46 +2316,69 @@ async function submitScore() {
   submitButton.disabled = true;
   
   try {
-    // FIXING SUPABASE CONNECTION ISSUE:
-    // Ensure we have a valid Supabase client before submitting
-    if (!supabase || typeof supabase.from !== 'function') {
-      console.log("Supabase client not initialized for submission, attempting to reinitialize...");
-      
-      // First try to use the initSupabase function
-      if (window.initSupabase && typeof window.initSupabase === 'function') {
-        console.log("Reinitializing Supabase client using window.initSupabase");
-        const success = window.initSupabase();
-        if (success) {
-          supabase = window.supabase;
-          console.log("Successfully reinitialized Supabase client for submission");
-        } else {
-          throw new Error("Failed to reinitialize Supabase client. Please refresh the page and try again.");
-        }
-      }
-      // Then try to get from window
-      else if (window.supabase && typeof window.supabase.from === 'function') {
+    // ENHANCED ROBUST SUPABASE CONNECTION FIX:
+    // Always force a fresh Supabase client before submission
+    let supabaseConnected = false;
+    
+    // 1. First attempt: Use window.initSupabase if available (most reliable method)
+    if (window.initSupabase && typeof window.initSupabase === 'function') {
+      console.log("Initializing fresh Supabase client using window.initSupabase");
+      const success = window.initSupabase();
+      if (success) {
         supabase = window.supabase;
-        console.log("Retrieved Supabase client from window object for submission");
-      } 
-      // Then try to recreate using URL and key
-      else if (window.SUPABASE_URL && window.SUPABASE_KEY) {
-        try {
-          // Try to access the global supabase object
-          const globalSupabase = window.supabase || supabase;
-          
-          if (globalSupabase && typeof globalSupabase.createClient === 'function') {
-            supabase = globalSupabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-            console.log("Successfully created new Supabase client for submission");
-          } else {
-            throw new Error("Global supabase object not available for submission");
-          }
-        } catch (e) {
-          console.error("Error creating Supabase client for submission:", e);
-          throw new Error("Unable to connect to leaderboard service. Please refresh the page and try again.");
-        }
-      } else {
-        throw new Error("Supabase configuration missing. Please refresh the page and try again.");
+        console.log("Successfully initialized fresh Supabase client");
+        supabaseConnected = true;
       }
+    }
+    
+    // 2. Second attempt: Try to access the already created client
+    if (!supabaseConnected && window.supabase && typeof window.supabase.from === 'function') {
+      console.log("Using existing Supabase client from window object");
+      supabase = window.supabase;
+      supabaseConnected = true;
+    }
+    
+    // 3. Third attempt: Create a new client directly using the library
+    if (!supabaseConnected && window.SUPABASE_URL && window.SUPABASE_KEY) {
+      console.log("Creating new Supabase client directly");
+      try {
+        // Verify the supabase library is loaded properly
+        if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
+          supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+          
+          // Verify the client was created successfully
+          if (supabase && typeof supabase.from === 'function') {
+            console.log("Successfully created new Supabase client");
+            // Store it in the window for future use
+            window.supabase = supabase;
+            supabaseConnected = true;
+          }
+        }
+      } catch (e) {
+        console.error("Error creating new Supabase client:", e);
+      }
+    }
+    
+    // If still not connected, try one more approach with global scope
+    if (!supabaseConnected) {
+      console.log("Attempting last resort method to create Supabase client");
+      try {
+        // Try to create a client using the global object if it exists
+        if (typeof window.supabase === 'object' && typeof window.supabase.createClient === 'function') {
+          supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+          supabaseConnected = true;
+        } else if (typeof supabase === 'object' && typeof supabase.createClient === 'function') {
+          supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+          supabaseConnected = true;
+        }
+      } catch (e) {
+        console.error("Last resort method failed:", e);
+      }
+    }
+    
+    // If all attempts failed, throw an error
+    if (!supabaseConnected || !supabase || typeof supabase.from !== 'function') {
+      throw new Error("Unable to connect to leaderboard service. Please refresh the page and try again.");
     }
     
     // Now attempt to use the supabase client
