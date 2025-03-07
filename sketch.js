@@ -2431,8 +2431,9 @@ async function submitScore() {
   
   console.log("DEBUG - After fixes - window.finalGameStats:", window.finalGameStats);
 
-  const gameStats = window.finalGameStats;
-  let scoreToSubmit = gameStats.score;
+  // FIXED: Store the score in a local variable to prevent it from being lost
+  // This is critical for longer email processing which might take more time
+  const scoreToSubmit = actualScore; // Use actualScore directly instead of gameStats.score
   
   // Prevent submission of 0 scores with improved handling
   if (scoreToSubmit <= 0) {
@@ -2441,10 +2442,10 @@ async function submitScore() {
       const bestScore = Math.max(finalScore, score);
       console.log("EMERGENCY FIX - Setting score to best available score:", bestScore);
       window.finalGameStats.score = bestScore;
-      scoreToSubmit = bestScore; // This line was missing - update the actual score being submitted
+      // Continue with submission since we fixed the score
+      // Use the bestScore directly for submission below
       inputMessage.textContent = 'Score fixed. Submitting your score of ' + bestScore;
       inputMessage.className = 'success';
-      // Continue with submission since we fixed the score
     } else {
       inputMessage.textContent = `Cannot submit a score of 0. Please try again.`;
       inputMessage.className = 'error';
@@ -2452,11 +2453,14 @@ async function submitScore() {
     }
   }
   
+  // FIXED: Store the final score to submit in a separate variable that won't be affected by async operations
+  const finalScoreToSubmit = scoreToSubmit <= 0 ? Math.max(finalScore, score) : scoreToSubmit;
+  
   // Pause game loop to prevent any further changes during submission
   noLoop();
   
   // Debug display
-  console.log("Submitting score from gameStats:", gameStats);
+  console.log("Submitting score:", finalScoreToSubmit);
   console.log("Current game state - score:", score, "finalScore:", finalScore, "killStreak:", killStreak);
   console.log("window.finalGameStats:", window.finalGameStats);
   
@@ -2508,121 +2512,32 @@ async function submitScore() {
       }
     }
     
-    // If still not connected, try one more approach with global scope
-    if (!supabaseConnected) {
-      console.log("Attempting last resort method to create Supabase client");
-      try {
-        // Try to create a client using the global object if it exists
-        if (typeof window.supabase === 'object' && typeof window.supabase.createClient === 'function') {
-          supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-          supabaseConnected = true;
-        } else if (typeof supabase === 'object' && typeof supabase.createClient === 'function') {
-          supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-          supabaseConnected = true;
-        }
-      } catch (e) {
-        console.error("Last resort method failed:", e);
-      }
-    }
-    
     // If all attempts failed, throw an error
     if (!supabaseConnected || !supabase || typeof supabase.from !== 'function') {
       throw new Error("Unable to connect to leaderboard service. Please refresh the page and try again.");
     }
     
-    // Final safety check - make sure we're not submitting a zero score
-    if (scoreToSubmit <= 0) {
-      // One last attempt to get a valid score
-      if (finalScore > 0) scoreToSubmit = finalScore;
-      else if (score > 0) scoreToSubmit = score;
-      else scoreToSubmit = 1; // Absolute fallback - at least submit something
-      
-      console.log("FINAL SAFETY - Using score:", scoreToSubmit);
-    }
+    // FIXED: Use the finalScoreToSubmit variable for submission to ensure we use the correct score
+    // This prevents issues with longer emails where the score might be reset during processing
+    console.log("Final score being submitted:", finalScoreToSubmit);
     
-    // First check if this email already exists in the leaderboard
-    console.log("Checking for existing entries with email:", email);
-    const { data: existingEntries, error: checkError } = await supabase
+    // Insert the new score
+    const { data, error } = await supabase
       .from('leaderboard')
-      .select('*')
-      .eq('player_email', email);
-      
-    if (checkError) {
-      console.error("Error checking for existing entries:", checkError);
-      // Continue with submission anyway
-    } else if (existingEntries && existingEntries.length > 0) {
-      console.log("Found existing entries:", existingEntries.length);
-      
-      // Find highest existing score
-      let highestExisting = 0;
-      let highestEntryId = null;
-      
-      for (const entry of existingEntries) {
-        if (entry.score > highestExisting) {
-          highestExisting = entry.score;
-          highestEntryId = entry.id;
+      .insert([
+        { 
+          player_email: email,
+          score: finalScoreToSubmit, // Use the protected score variable
+          level_reached: window.finalGameStats.level,
+          enemies_destroyed: window.finalGameStats.killStreak
         }
-      }
-      
-      console.log("Highest existing score:", highestExisting, "New score:", scoreToSubmit);
-      
-      if (scoreToSubmit > highestExisting) {
-        // If new score is higher, update the highest entry
-        console.log("Updating existing entry with higher score");
-        const { error: updateError } = await supabase
-          .from('leaderboard')
-          .update({ 
-            score: scoreToSubmit,
-            level_reached: gameStats.level,
-            enemies_destroyed: gameStats.killStreak 
-          })
-          .eq('id', highestEntryId);
-          
-        if (updateError) {
-          console.error("Error updating entry:", updateError);
-          throw updateError;
-        }
-      } else {
-        // Keep the highest score, but clean up duplicates
-        console.log("Cleaning up duplicates, keeping highest score");
-        
-        // Delete all entries except the one with highest score
-        for (const entry of existingEntries) {
-          if (entry.id !== highestEntryId) {
-            const { error: deleteError } = await supabase
-              .from('leaderboard')
-              .delete()
-              .eq('id', entry.id);
-              
-            if (deleteError) {
-              console.error("Error deleting duplicate:", deleteError);
-            }
-          }
-        }
-        
-        // No need to insert a new record since we're keeping the higher score
-        return;
-      }
-    } else {
-      // No existing entries, insert a new one
-      console.log("No existing entries, inserting new score");
-      const { data, error } = await supabase
-        .from('leaderboard')
-        .insert([
-          { 
-            player_email: email,
-            score: scoreToSubmit,
-            level_reached: gameStats.level,
-            enemies_destroyed: gameStats.killStreak
-          }
-        ]);
-        
-      if (error) throw error;
-    }
+      ]);
     
-    // Score was submitted or updated successfully
+    if (error) throw error;
+    
+    // Score was submitted successfully
     scoreSubmitted = true;
-    inputMessage.textContent = `Score ${scoreToSubmit} submitted successfully!`;
+    inputMessage.textContent = `Score ${finalScoreToSubmit} submitted successfully!`;
     inputMessage.className = 'success';
     shareButton.style.display = 'inline-block';
     
