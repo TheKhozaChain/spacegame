@@ -206,22 +206,40 @@ function draw() {
       
       // Check collision with player
       if (dist(player.x, player.y, enemies[i].x, enemies[i].y) < 20) {
-        lives--;
-        explosions.push(new Explosion(enemies[i].x, enemies[i].y));
-        playExplosionSound();
-        enemies.splice(i, 1);
-        if (lives <= 0 && gameState !== "gameOver") {
-          finalScore = score; // Save final score
-          gameState = "gameOver";
-          
-          // Capture final stats
-          window.finalGameStats = {
-            score: score,
-            level: level,
-            killStreak: killStreak
-          };
-          
-          console.log("Game over! Final stats captured:", window.finalGameStats);
+        // Check if shield is active - if so, don't reduce lives
+        if (shieldActive) {
+          // Just destroy the enemy without reducing lives
+          explosions.push(new Explosion(enemies[i].x, enemies[i].y));
+          playExplosionSound();
+          // Add shield hit effect
+          for (let j = 0; j < 10; j++) {
+            particles.push(new Particle(
+              enemies[i].x, 
+              enemies[i].y, 
+              0, 200, 255, // Blue shield color
+              30
+            ));
+          }
+          enemies.splice(i, 1);
+        } else {
+          // No shield, reduce lives
+          lives--;
+          explosions.push(new Explosion(enemies[i].x, enemies[i].y));
+          playExplosionSound();
+          enemies.splice(i, 1);
+          if (lives <= 0 && gameState !== "gameOver") {
+            finalScore = score; // Save final score
+            gameState = "gameOver";
+            
+            // Capture final stats
+            window.finalGameStats = {
+              score: score,
+              level: level,
+              killStreak: killStreak
+            };
+            
+            console.log("Game over! Final stats captured:", window.finalGameStats);
+          }
         }
         continue;
       }
@@ -229,7 +247,8 @@ function draw() {
       // Check if enemy has gone off-screen
       if (enemies[i].y > HEIGHT + 20) {
         escapedEnemies++;
-        if (penalizeEscapedEnemies) {
+        if (penalizeEscapedEnemies && !shieldActive) {
+          // Only deduct lives if shield is not active
           lives--;
           if (lives <= 0 && gameState !== "gameOver") {
             finalScore = score; // Save final score
@@ -357,22 +376,38 @@ function draw() {
       
       // Check collision with player
       if (dist(enemyBullets[i].x, enemyBullets[i].y, player.x, player.y) < 10) {
-        lives--;
-        explosions.push(new Explosion(player.x, player.y));
-        playExplosionSound();
-        enemyBullets.splice(i, 1);
-        if (lives <= 0 && gameState !== "gameOver") {
-          finalScore = score; // Save final score
-          gameState = "gameOver";
-          
-          // Capture final stats
-          window.finalGameStats = {
-            score: score,
-            level: level,
-            killStreak: killStreak
-          };
-          
-          console.log("Game over! Final stats captured:", window.finalGameStats);
+        // Check if shield is active - if so, don't reduce lives
+        if (shieldActive) {
+          // Just destroy the bullet without reducing lives
+          // Add shield hit effect
+          for (let j = 0; j < 5; j++) {
+            particles.push(new Particle(
+              enemyBullets[i].x, 
+              enemyBullets[i].y, 
+              0, 200, 255, // Blue shield color
+              20
+            ));
+          }
+          enemyBullets.splice(i, 1);
+        } else {
+          // No shield, reduce lives
+          lives--;
+          explosions.push(new Explosion(player.x, player.y));
+          playExplosionSound();
+          enemyBullets.splice(i, 1);
+          if (lives <= 0 && gameState !== "gameOver") {
+            finalScore = score; // Save final score
+            gameState = "gameOver";
+            
+            // Capture final stats
+            window.finalGameStats = {
+              score: score,
+              level: level,
+              killStreak: killStreak
+            };
+            
+            console.log("Game over! Final stats captured:", window.finalGameStats);
+          }
         }
       }
       
