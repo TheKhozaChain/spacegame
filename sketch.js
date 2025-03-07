@@ -570,6 +570,26 @@ function drawGameOverScreen() {
   // Use the stored final stats if available
   const displayKillStreak = window.finalGameStats ? window.finalGameStats.killStreak : killStreak;
   
+  // FIXED: Make sure we always have a valid finalScore for display and submission
+  if (finalScore <= 0 && window.finalGameStats && window.finalGameStats.score > 0) {
+    finalScore = window.finalGameStats.score;
+    console.log("Corrected finalScore to", finalScore, "from window.finalGameStats");
+  } else if (finalScore <= 0 && score > 0) {
+    finalScore = score;
+    console.log("Corrected finalScore to current score:", finalScore);
+    
+    // Also update finalGameStats to ensure consistency
+    if (!window.finalGameStats) {
+      window.finalGameStats = {
+        score: finalScore,
+        level: level,
+        killStreak: killStreak
+      };
+    } else {
+      window.finalGameStats.score = finalScore;
+    }
+  }
+  
   // Display final score
   text(`Final Score: ${finalScore}`, WIDTH / 2, HEIGHT / 4 + 40);
   
@@ -2178,18 +2198,35 @@ function showEmailForm() {
   // Ensure we're in a paused state while the form is open
   noLoop();
   
-  // Make sure we have the correct final score saved
+  // FIXED: More robust handling of final score
+  // First, find the best available score
+  let bestScore = 0;
+  if (window.finalGameStats && window.finalGameStats.score > 0) {
+    bestScore = window.finalGameStats.score;
+  } else if (finalScore > 0) {
+    bestScore = finalScore;
+  } else if (score > 0) {
+    bestScore = score;
+  }
+  
+  // Now make sure window.finalGameStats has the correct score
   if (!window.finalGameStats || window.finalGameStats.score <= 0) {
-    console.log("Creating or updating finalGameStats with current finalScore:", finalScore);
+    console.log("Creating or updating finalGameStats with best score:", bestScore);
     window.finalGameStats = {
-      score: finalScore > 0 ? finalScore : score,
+      score: bestScore,
       level: level,
       killStreak: killStreak
     };
   }
   
+  // Also ensure finalScore has a valid value (needed for display and other checks)
+  if (finalScore <= 0 && bestScore > 0) {
+    finalScore = bestScore;
+    console.log("Updated finalScore to best available score:", finalScore);
+  }
+  
   console.log("Final game stats before showing email form:", window.finalGameStats);
-  console.log("Current finalScore:", finalScore, "Current score:", score);
+  console.log("Current finalScore:", finalScore, "Current score:", score, "Best score:", bestScore);
   
   // ENHANCED ROBUST SUPABASE CONNECTION FIX:
   // Always force a fresh Supabase client initialization before showing the form
@@ -2309,33 +2346,53 @@ async function submitScore() {
     return;
   }
   
-  // Always use window.finalGameStats if available to ensure we have the correct values
-  // from when the game ended
-  if (!window.finalGameStats) {
-    console.warn("window.finalGameStats is not available, creating it now");
-    window.finalGameStats = {
-      score: finalScore,
-      level: level,
-      killStreak: killStreak
-    };
+  // FIXED: Added robust score handling to prevent issues with longer emails
+  // Ensure we always have valid game stats to submit
+  console.log("DEBUG - Before fixes - finalScore:", finalScore, "score:", score);
+  console.log("DEBUG - Initial window.finalGameStats:", window.finalGameStats);
+  
+  // First make sure we have valid non-zero scores
+  let actualScore = 0;
+  
+  // Try all possible sources for the score, in order of preference
+  if (window.finalGameStats && window.finalGameStats.score > 0) {
+    actualScore = window.finalGameStats.score;
+    console.log("DEBUG - Using score from window.finalGameStats:", actualScore);
+  } else if (finalScore > 0) {
+    actualScore = finalScore;
+    console.log("DEBUG - Using finalScore:", actualScore);
+  } else if (score > 0) {
+    actualScore = score;
+    console.log("DEBUG - Using current score:", actualScore);
   }
   
+  // Always recreate finalGameStats with the guaranteed score value
+  window.finalGameStats = {
+    score: actualScore,
+    level: level,
+    killStreak: killStreak
+  };
+  
+  console.log("DEBUG - After fixes - window.finalGameStats:", window.finalGameStats);
+
   const gameStats = window.finalGameStats;
   const scoreToSubmit = gameStats.score;
   
-  // Prevent submission of 0 scores
+  // Prevent submission of 0 scores with improved handling
   if (scoreToSubmit <= 0) {
-    inputMessage.textContent = `Cannot submit a score of 0. Current finalScore: ${finalScore}`;
-    inputMessage.className = 'error';
-    
-    // If we have a non-zero finalScore but gameStats.score is 0, fix it
-    if (finalScore > 0 && scoreToSubmit <= 0) {
-      console.log("Fixing gameStats with current finalScore:", finalScore);
-      window.finalGameStats.score = finalScore;
-      inputMessage.textContent = 'Score fixed. Please try submitting again.';
+    // Extra protection - try one more time to get a valid score
+    if (finalScore > 0 || score > 0) {
+      const bestScore = Math.max(finalScore, score);
+      console.log("EMERGENCY FIX - Setting score to best available score:", bestScore);
+      window.finalGameStats.score = bestScore;
+      inputMessage.textContent = 'Score fixed. Submitting your score of ' + bestScore;
+      inputMessage.className = 'success';
+      // Continue with submission since we fixed the score
+    } else {
+      inputMessage.textContent = `Cannot submit a score of 0. Please try again.`;
+      inputMessage.className = 'error';
       return;
     }
-    return;
   }
   
   // Pause game loop to prevent any further changes during submission
