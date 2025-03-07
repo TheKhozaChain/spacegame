@@ -2376,7 +2376,7 @@ async function submitScore() {
   console.log("DEBUG - After fixes - window.finalGameStats:", window.finalGameStats);
 
   const gameStats = window.finalGameStats;
-  const scoreToSubmit = gameStats.score;
+  let scoreToSubmit = gameStats.score;
   
   // Prevent submission of 0 scores with improved handling
   if (scoreToSubmit <= 0) {
@@ -2385,6 +2385,7 @@ async function submitScore() {
       const bestScore = Math.max(finalScore, score);
       console.log("EMERGENCY FIX - Setting score to best available score:", bestScore);
       window.finalGameStats.score = bestScore;
+      scoreToSubmit = bestScore; // This line was missing - update the actual score being submitted
       inputMessage.textContent = 'Score fixed. Submitting your score of ' + bestScore;
       inputMessage.className = 'success';
       // Continue with submission since we fixed the score
@@ -2471,6 +2472,16 @@ async function submitScore() {
     // If all attempts failed, throw an error
     if (!supabaseConnected || !supabase || typeof supabase.from !== 'function') {
       throw new Error("Unable to connect to leaderboard service. Please refresh the page and try again.");
+    }
+    
+    // Final safety check - make sure we're not submitting a zero score
+    if (scoreToSubmit <= 0) {
+      // One last attempt to get a valid score
+      if (finalScore > 0) scoreToSubmit = finalScore;
+      else if (score > 0) scoreToSubmit = score;
+      else scoreToSubmit = 1; // Absolute fallback - at least submit something
+      
+      console.log("FINAL SAFETY - Using score:", scoreToSubmit);
     }
     
     // Now attempt to use the supabase client
