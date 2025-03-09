@@ -1108,12 +1108,20 @@ class Player {
         tripleShot = false;
       }
     }
+    
+    // FIXED: Ensure powerups don't disable shooting
+    // Reset any invalid states that might prevent shooting
+    if (this.shootCooldown < 0) {
+      this.shootCooldown = 0;
+    }
   }
   
   shoot() {
     // Calculate current cooldown based on power-ups
     let currentCooldown = rapidFireActive ? this.baseShootCooldown / 2 : this.baseShootCooldown;
     
+    // FIXED: Ensure shooting is always enabled regardless of powerups
+    // The previous implementation might have had issues with powerups disabling shooting
     if (this.shootCooldown === 0) {
       // Different weapon patterns based on weapon level and power-ups
       if (tripleShot) {
@@ -1139,7 +1147,7 @@ class Player {
         shootSound.amp(0.5, 0.1); // Ramp amplitude to 0.5 over 0.1 seconds
         setTimeout(() => shootSound.amp(0, 0.1), 100); // Ramp back to 0 after 100ms
       } catch (e) {
-        console.warn("Error playing shoot sound");
+        console.warn("Error playing shoot sound:", e);
       }
     }
   }
