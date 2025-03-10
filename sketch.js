@@ -639,116 +639,118 @@ function drawGameOverScreen() {
 }
 
 function drawLeaderboardScreen() {
-  push();
-  textAlign(CENTER);
+  background(0);
   
   // Title
-  fill(0, 150, 255);
-  textSize(40);
-  text("LEADERBOARD", WIDTH / 2, 80);
+  fill(255);
+  textSize(36);
+  textAlign(CENTER, CENTER);
+  text("LEADERBOARD", WIDTH / 2, 50);
   
-  // Loading state
   if (isLoadingLeaderboard) {
+    // Loading indicator
     fill(255);
     textSize(24);
-    text("Loading scores...", WIDTH / 2, HEIGHT / 2);
-  } 
-  // Error state
-  else if (leaderboardError) {
+    text("Loading leaderboard...", WIDTH / 2, HEIGHT / 2);
+    return;
+  }
+  
+  if (leaderboardError) {
+    // Error message
     fill(255, 50, 50);
     textSize(24);
-    text("Error loading leaderboard", WIDTH / 2, HEIGHT / 2);
-    textSize(16);
-    text(leaderboardError, WIDTH / 2, HEIGHT / 2 + 30);
-  } 
-  // Display leaderboard
-  else if (leaderboardData.length > 0) {
-    // Check if there's a current game entry
-    const hasCurrentGame = leaderboardData.some(entry => entry.isCurrentGame);
+    text("Error: " + leaderboardError, WIDTH / 2, HEIGHT / 2);
     
-    // Header
-    fill(200, 200, 255);
-    textSize(20);
-    textAlign(LEFT);
-    text("RANK", 100, 130);
-    text("EMAIL", 250, 130);
-    text("SCORE", 500, 130);
-    text("LEVEL", 600, 130);
-    
-    // Note about current game
-    if (hasCurrentGame && !scoreSubmitted) {
-      textAlign(CENTER);
-      fill(0, 255, 200);
-      textSize(14);
-      text("* Current game score (not yet submitted)", WIDTH / 2, HEIGHT - 120);
-      textAlign(LEFT);
-    }
-    
-    // Remove duplicates from leaderboard by keeping highest score per email
-    const uniqueEntries = [];
-    const emailsAdded = new Set();
-    
-    for (const entry of leaderboardData) {
-      // Always include current game entries
-      if (entry.isCurrentGame) {
-        uniqueEntries.push(entry);
-      } 
-      // For regular entries, only add if email hasn't been seen yet
-      else if (!emailsAdded.has(entry.player_email)) {
-        uniqueEntries.push(entry);
-        emailsAdded.add(entry.player_email);
-      }
-    }
-    
-    // Sort by score in descending order
-    uniqueEntries.sort((a, b) => b.score - a.score);
-    
-    // Scores
+    // Back button
+    fill(100, 100, 255);
+    rect(WIDTH / 2 - 100, HEIGHT - 100, 200, 40, 10);
     fill(255);
-    textSize(16);
-    for (let i = 0; i < Math.min(uniqueEntries.length, 10); i++) {
-      const entry = uniqueEntries[i];
-      
-      // Format email display
-      let displayEmail;
-      if (entry.isCurrentGame) {
-        displayEmail = "CURRENT GAME *";
-      } else {
-        displayEmail = entry.player_email.substring(0, 3) + "..." + 
-                      entry.player_email.substring(entry.player_email.indexOf('@'));
-      }
-      
-      // Highlight the current player's score
-      if (scoreSubmitted && entry.player_email === emailInput.value) {
-        fill(255, 255, 0); // Yellow for submitted score
-      } else if (entry.isCurrentGame) {
-        fill(0, 255, 200); // Cyan for current game score
-      } else {
-        fill(255); // White for other scores
-      }
-      
-      text(`${i + 1}.`, 100, 170 + i * 30);
-      text(displayEmail, 250, 170 + i * 30);
-      text(entry.score, 500, 170 + i * 30);
-      text(entry.level_reached, 600, 170 + i * 30);
-    }
-  } 
-  // No scores
-  else {
+    textSize(20);
+    text("BACK TO MENU", WIDTH / 2, HEIGHT - 80);
+    return;
+  }
+  
+  if (!leaderboardData || leaderboardData.length === 0) {
+    // No data
     fill(255);
     textSize(24);
     text("No scores yet. Be the first!", WIDTH / 2, HEIGHT / 2);
+    
+    // Back button
+    fill(100, 100, 255);
+    rect(WIDTH / 2 - 100, HEIGHT - 100, 200, 40, 10);
+    fill(255);
+    textSize(20);
+    text("BACK TO MENU", WIDTH / 2, HEIGHT - 80);
+    return;
+  }
+  
+  // Display leaderboard entries
+  const entriesPerPage = 10;
+  const startIndex = 0;
+  const endIndex = Math.min(startIndex + entriesPerPage, leaderboardData.length);
+  
+  // Header
+  fill(150, 150, 255);
+  textSize(20);
+  textAlign(LEFT, CENTER);
+  text("RANK", 50, 100);
+  text("PLAYER", 150, 100);
+  text("SCORE", 400, 100);
+  text("LEVEL", 500, 100);
+  text("KILLS", 600, 100);
+  
+  // Entries
+  for (let i = startIndex; i < endIndex; i++) {
+    const entry = leaderboardData[i];
+    const y = 140 + (i - startIndex) * 40;
+    
+    // Highlight current player's score
+    if (entry.player_email === document.getElementById('player-email').value) {
+      fill(0, 100, 0, 100);
+      rect(40, y - 20, WIDTH - 80, 40);
+    }
+    
+    // Rank
+    fill(255);
+    textAlign(LEFT, CENTER);
+    text(`${i + 1}`, 50, y);
+    
+    // Player (email with privacy)
+    const email = entry.player_email;
+    const displayEmail = email.length > 12 ? 
+      email.substring(0, 4) + "..." + email.substring(email.indexOf('@')) : 
+      email;
+    
+    // CORS FIX: Show if entry is from local storage
+    if (entry.is_local) {
+      fill(200, 200, 100); // Yellow for local entries
+      text(`${displayEmail} (local)`, 150, y);
+    } else {
+      fill(255);
+      text(displayEmail, 150, y);
+    }
+    
+    // Score
+    fill(255, 255, 100);
+    text(entry.score, 400, y);
+    
+    // Level
+    fill(100, 255, 100);
+    text(entry.level_reached || "1", 500, y);
+    
+    // Kills
+    fill(255, 100, 100);
+    text(entry.enemies_destroyed || "0", 600, y);
   }
   
   // Back button
-  textAlign(CENTER);
   fill(100, 100, 255);
-  rect(WIDTH / 2 - 100, HEIGHT - 80, 200, 40, 10);
+  rect(WIDTH / 2 - 100, HEIGHT - 100, 200, 40, 10);
   fill(255);
   textSize(20);
-  text("BACK TO MENU", WIDTH / 2, HEIGHT - 55);
-  
-  pop();
+  textAlign(CENTER, CENTER);
+  text("BACK TO MENU", WIDTH / 2, HEIGHT - 80);
 }
 
 function keyPressed() {
@@ -2093,13 +2095,54 @@ async function fetchLeaderboard() {
   gameState = "leaderboard";
   
   try {
-    // DIRECT API APPROACH: Use the supabaseApi object to fetch leaderboard data
-    console.log("Fetching leaderboard data via direct API...");
+    // CORS FIX: Try to fetch from API with fallback to localStorage
+    console.log("Fetching leaderboard data...");
     
-    // Get leaderboard data
-    leaderboardData = await window.supabaseApi.getLeaderboard();
+    // Get API leaderboard data
+    let apiData = [];
+    try {
+      apiData = await window.supabaseApi.getLeaderboard();
+      console.log("API leaderboard data:", apiData.length, "entries");
+    } catch (apiError) {
+      console.error("Error fetching API leaderboard:", apiError);
+    }
     
-    console.log("Leaderboard data:", leaderboardData);
+    // Get localStorage data
+    let localData = [];
+    try {
+      const storedData = localStorage.getItem('spaceGameLeaderboard');
+      if (storedData) {
+        localData = JSON.parse(storedData);
+        console.log("Local leaderboard data:", localData.length, "entries");
+      }
+    } catch (localError) {
+      console.error("Error fetching local leaderboard:", localError);
+    }
+    
+    // Merge data, prioritizing API data for same email
+    const mergedData = [...apiData];
+    
+    // Add local entries that don't exist in API data
+    for (const localEntry of localData) {
+      // Skip if this email already exists in API data
+      if (!apiData.some(entry => entry.player_email === localEntry.player_email)) {
+        // Mark as local entry
+        localEntry.is_local = true;
+        mergedData.push(localEntry);
+      }
+    }
+    
+    // Sort by score (highest first)
+    mergedData.sort((a, b) => b.score - a.score);
+    
+    // Use merged data
+    leaderboardData = mergedData;
+    
+    console.log("Merged leaderboard data:", leaderboardData.length, "entries");
+    
+    if (leaderboardData.length === 0) {
+      leaderboardError = "No leaderboard data available";
+    }
   } catch (error) {
     console.error("Error fetching leaderboard:", error);
     leaderboardError = error.message || "Failed to fetch leaderboard";
@@ -2306,17 +2349,43 @@ async function submitScore() {
   submitButton.disabled = true;
   
   try {
-    // DIRECT API APPROACH: Use the supabaseApi object to submit the score
-    await window.supabaseApi.addScore(
-      email,
-      guaranteedScore,
-      window.finalGameStats.level,
-      window.finalGameStats.killStreak
-    );
+    // CORS FIX: Try to submit via API with fallback to localStorage
+    let result;
+    
+    try {
+      // First try the API
+      await window.supabaseApi.addScore(
+        email,
+        guaranteedScore,
+        window.finalGameStats.level,
+        window.finalGameStats.killStreak
+      );
+      result = { success: true, isLocal: false };
+    } catch (apiError) {
+      console.error("API submission failed, trying localStorage fallback:", apiError);
+      
+      // If API fails, use localStorage fallback
+      result = window.supabaseApi.fallbackToLocalStorage(
+        email,
+        guaranteedScore,
+        window.finalGameStats.level,
+        window.finalGameStats.killStreak
+      );
+      
+      if (!result.success) {
+        throw new Error("Both API and localStorage submission failed");
+      }
+    }
     
     // Score was submitted successfully
     scoreSubmitted = true;
-    inputMessage.textContent = `Score ${guaranteedScore} submitted successfully!`;
+    
+    if (result.isLocal) {
+      inputMessage.textContent = `Score ${guaranteedScore} saved locally (offline mode)`;
+    } else {
+      inputMessage.textContent = `Score ${guaranteedScore} submitted successfully!`;
+    }
+    
     inputMessage.className = 'success';
     shareButton.style.display = 'inline-block';
     

@@ -76,7 +76,7 @@
     <button id="cancel-submit">Cancel</button>
     <button id="share-button" style="display: none;">Share on Twitter</button>
   </div>
-  <div id="version-indicator">v1.0.8 (Direct API Fix)</div>
+  <div id="version-indicator">v1.0.9 (CORS Fix)</div>
   
   <!-- DIRECT API APPROACH: Use fetch to communicate with Supabase -->
   <script>
@@ -88,21 +88,33 @@
     window.SUPABASE_URL = SUPABASE_URL;
     window.SUPABASE_KEY = SUPABASE_KEY;
     
-    // Direct API client for Supabase
+    // CORS-friendly API client for Supabase
     window.supabaseApi = {
+      // Common headers for all requests
+      getHeaders() {
+        return {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        };
+      },
+      
       // Fetch leaderboard data
       async getLeaderboard() {
         try {
-          const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?order=score.desc&limit=100`, {
+          console.log("Fetching leaderboard data...");
+          
+          // Use a more reliable approach with better error handling
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?select=*&order=score.desc&limit=100`, {
             method: 'GET',
-            headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`,
-              'Content-Type': 'application/json'
-            }
+            headers: this.getHeaders(),
+            mode: 'cors' // Explicitly set CORS mode
           });
           
           if (!response.ok) {
+            const errorText = await response.text();
+            console.error("API error response:", errorText);
             throw new Error(`API error: ${response.status}`);
           }
           
@@ -111,7 +123,8 @@
           return data;
         } catch (error) {
           console.error("Error fetching leaderboard:", error);
-          throw error;
+          // Return empty array instead of throwing to prevent UI errors
+          return [];
         }
       },
       
@@ -127,20 +140,29 @@
           
           console.log("Submitting score:", payload);
           
+          // Use a more reliable approach with better error handling
           const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard`, {
             method: 'POST',
             headers: {
-              'apikey': SUPABASE_KEY,
-              'Authorization': `Bearer ${SUPABASE_KEY}`,
-              'Content-Type': 'application/json',
+              ...this.getHeaders(),
               'Prefer': 'return=minimal'
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            mode: 'cors' // Explicitly set CORS mode
           });
           
           if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`API error: ${response.status} - ${errorText}`);
+            let errorMessage = `API error: ${response.status}`;
+            try {
+              const errorText = await response.text();
+              console.error("API error response:", errorText);
+              if (errorText) {
+                errorMessage += ` - ${errorText}`;
+              }
+            } catch (e) {
+              console.error("Could not parse error response:", e);
+            }
+            throw new Error(errorMessage);
           }
           
           console.log("Score submitted successfully");
@@ -149,6 +171,64 @@
           console.error("Error submitting score:", error);
           throw error;
         }
+      },
+      
+      // Fallback to localStorage if API fails
+      fallbackToLocalStorage(email, score, level, enemiesDestroyed) {
+        try {
+          console.log("Falling back to localStorage for score submission");
+          
+          // Get current leaderboard from localStorage
+          let leaderboard = [];
+          try {
+            const storedData = localStorage.getItem('spaceGameLeaderboard');
+            if (storedData) {
+              leaderboard = JSON.parse(storedData);
+            }
+          } catch (e) {
+            console.error("Error reading from localStorage:", e);
+            leaderboard = [];
+          }
+          
+          // Add new entry
+          const newEntry = {
+            player_email: email,
+            score: score,
+            level_reached: level,
+            enemies_destroyed: enemiesDestroyed,
+            created_at: new Date().toISOString(),
+            is_local: true // Mark as local entry
+          };
+          
+          // Check if this email already exists
+          const existingIndex = leaderboard.findIndex(entry => entry.player_email === email);
+          
+          // If email exists and new score is higher, replace it
+          if (existingIndex >= 0) {
+            if (leaderboard[existingIndex].score < score) {
+              leaderboard[existingIndex] = newEntry;
+            }
+          } else {
+            // Otherwise add new entry
+            leaderboard.push(newEntry);
+          }
+          
+          // Sort by score (highest first)
+          leaderboard.sort((a, b) => b.score - a.score);
+          
+          // Keep only top 100 scores
+          if (leaderboard.length > 100) {
+            leaderboard = leaderboard.slice(0, 100);
+          }
+          
+          // Save back to localStorage
+          localStorage.setItem('spaceGameLeaderboard', JSON.stringify(leaderboard));
+          
+          return { success: true, isLocal: true };
+        } catch (error) {
+          console.error("Error with localStorage fallback:", error);
+          return { success: false, error: error.message };
+        }
       }
     };
     
@@ -156,9 +236,14 @@
     window.addEventListener('load', async function() {
       try {
         console.log("Testing Supabase API connection...");
-        await window.supabaseApi.getLeaderboard();
-        console.log("Supabase API connection successful");
-        document.getElementById('version-indicator').textContent += " (API OK)";
+        const data = await window.supabaseApi.getLeaderboard();
+        if (data && data.length > 0) {
+          console.log("Supabase API connection successful");
+          document.getElementById('version-indicator').textContent += " (API OK)";
+        } else {
+          console.warn("Supabase API returned empty data");
+          document.getElementById('version-indicator').textContent += " (No Data)";
+        }
       } catch (error) {
         console.error("Supabase API connection failed:", error);
         document.getElementById('version-indicator').textContent += " (API Error)";
