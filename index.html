@@ -4,12 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI SPACE DEFENDER</title>
-  <!-- CRITICAL FIX: Load p5.js libraries first -->
+  <!-- Load p5.js libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.sound.min.js"></script>
-  
-  <!-- CRITICAL FIX: Load Supabase directly with a specific version -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.4/dist/umd/supabase.min.js"></script>
   
   <style>
     body {
@@ -79,66 +76,73 @@
     <button id="cancel-submit">Cancel</button>
     <button id="share-button" style="display: none;">Share on Twitter</button>
   </div>
-  <div id="version-indicator">v1.0.6 (Direct Supabase Fix)</div>
+  <div id="version-indicator">v1.0.7 (Local Storage Fix)</div>
   
-  <!-- CRITICAL FIX: Create Supabase client directly -->
+  <!-- SIMPLIFIED APPROACH: Use localStorage for leaderboard -->
   <script>
-    // Global variables for Supabase
-    const SUPABASE_URL = 'https://gnhtszddvxzszcipcydh.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImduaHRzemRkdnh6c3pjaXBjeWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1NTAxMTksImV4cCI6MjA1NjEyNjExOX0.cF8U1uJxRt1nuoBax6K8PTs5kZGYMEfeRN77bzi9thE';
-    
-    // Make them available globally
-    window.SUPABASE_URL = SUPABASE_URL;
-    window.SUPABASE_KEY = SUPABASE_KEY;
-    
-    // Wait for the page to load
-    window.addEventListener('load', function() {
-      console.log("Page loaded, checking for Supabase...");
-      
-      // Check if Supabase is available
-      if (typeof supabase === 'undefined') {
-        console.error("Supabase is not defined after page load!");
-        document.getElementById('version-indicator').textContent += " (Supabase Error)";
-      } else {
+    // Simple leaderboard using localStorage
+    window.gameLeaderboard = {
+      // Get the leaderboard data from localStorage
+      getLeaderboard: function() {
         try {
-          // Create the Supabase client
-          console.log("Creating Supabase client...");
-          window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-          
-          // Make it available as window.supabase for compatibility
-          window.supabase = window.supabaseClient;
-          
-          console.log("Supabase client created successfully:", !!window.supabaseClient);
-          document.getElementById('version-indicator').textContent += " (Supabase OK)";
+          const leaderboardData = localStorage.getItem('spaceGameLeaderboard');
+          return leaderboardData ? JSON.parse(leaderboardData) : [];
         } catch (error) {
-          console.error("Error creating Supabase client:", error);
-          document.getElementById('version-indicator').textContent += " (Client Error)";
+          console.error("Error getting leaderboard:", error);
+          return [];
+        }
+      },
+      
+      // Add a new score to the leaderboard
+      addScore: function(email, score, level, enemiesDestroyed) {
+        try {
+          // Get current leaderboard
+          let leaderboard = this.getLeaderboard();
+          
+          // Add new entry
+          const newEntry = {
+            player_email: email,
+            score: score,
+            level_reached: level,
+            enemies_destroyed: enemiesDestroyed,
+            created_at: new Date().toISOString()
+          };
+          
+          // Check if this email already exists
+          const existingIndex = leaderboard.findIndex(entry => entry.player_email === email);
+          
+          // If email exists and new score is higher, replace it
+          if (existingIndex >= 0) {
+            if (leaderboard[existingIndex].score < score) {
+              leaderboard[existingIndex] = newEntry;
+            }
+          } else {
+            // Otherwise add new entry
+            leaderboard.push(newEntry);
+          }
+          
+          // Sort by score (highest first)
+          leaderboard.sort((a, b) => b.score - a.score);
+          
+          // Keep only top 100 scores
+          if (leaderboard.length > 100) {
+            leaderboard = leaderboard.slice(0, 100);
+          }
+          
+          // Save back to localStorage
+          localStorage.setItem('spaceGameLeaderboard', JSON.stringify(leaderboard));
+          
+          return { success: true };
+        } catch (error) {
+          console.error("Error adding score:", error);
+          return { success: false, error: error.message };
         }
       }
-    });
-    
-    // Function to initialize or get Supabase client
-    window.getSupabaseClient = function() {
-      // Return existing client if available
-      if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
-        return window.supabaseClient;
-      }
-      
-      // Try to create a new client if Supabase is available
-      if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
-        try {
-          window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-          window.supabase = window.supabaseClient; // For compatibility
-          return window.supabaseClient;
-        } catch (error) {
-          console.error("Error creating Supabase client:", error);
-          return null;
-        }
-      }
-      
-      console.error("Supabase library not available");
-      return null;
     };
+    
+    // Make these available to sketch.js
+    window.SUPABASE_URL = 'dummy-url';
+    window.SUPABASE_KEY = 'dummy-key';
   </script>
   
   <!-- Load sketch.js after everything else -->

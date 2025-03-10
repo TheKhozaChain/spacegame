@@ -78,23 +78,8 @@ function setup() {
     };
   }
   
-  // CRITICAL FIX v3: Use the new getSupabaseClient function
-  try {
-    console.log("Getting Supabase client in setup...");
-    
-    // Get the Supabase client using the new function
-    supabase = window.getSupabaseClient();
-    
-    if (supabase) {
-      console.log("Successfully got Supabase client");
-    } else {
-      console.warn("Failed to get Supabase client, leaderboard features may not work");
-      leaderboardError = "Supabase client initialization failed";
-    }
-  } catch (e) {
-    console.error("Error getting Supabase client:", e);
-    leaderboardError = "Supabase client initialization failed: " + e.message;
-  }
+  // SIMPLIFIED APPROACH: No need to initialize Supabase anymore
+  console.log("Using localStorage for leaderboard");
   
   // Get DOM elements
   emailInput = document.getElementById('player-email');
@@ -2108,24 +2093,12 @@ async function fetchLeaderboard() {
   gameState = "leaderboard";
   
   try {
-    // CRITICAL FIX v3: Use the getSupabaseClient function
-    const supabaseClient = window.getSupabaseClient();
+    // SIMPLIFIED APPROACH: Use localStorage for leaderboard
+    console.log("Fetching leaderboard data from localStorage...");
     
-    if (!supabaseClient) {
-      throw new Error("Unable to connect to leaderboard service. Please refresh the page and try again.");
-    }
+    // Get leaderboard data
+    leaderboardData = window.gameLeaderboard.getLeaderboard();
     
-    console.log("Fetching leaderboard data...");
-    
-    const { data, error } = await supabaseClient
-      .from('leaderboard')
-      .select('*')
-      .order('score', { ascending: false })
-      .limit(100);
-    
-    if (error) throw error;
-    
-    leaderboardData = data || [];
     console.log("Leaderboard data:", leaderboardData);
   } catch (error) {
     console.error("Error fetching leaderboard:", error);
@@ -2278,20 +2251,16 @@ function hideEmailForm() {
 }
 
 async function submitScore() {
-  // CRITICAL FIX: Force a delay to ensure all variables are properly initialized
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
-  // CRITICAL FIX: Store the score values immediately at the start of the function
-  // This prevents issues with longer emails causing score to reset
+  // SIMPLIFIED APPROACH: Use localStorage for leaderboard
+  // Store the score values at the start of the function
   const initialFinalScore = finalScore;
   const initialScore = score;
   const initialKillStreak = killStreak;
   const initialLevel = level;
   
-  // Store these values in a local variable that won't be affected by async operations
-  console.log("SCORE FIX v3: Capturing initial scores - finalScore:", initialFinalScore, "score:", initialScore);
+  console.log("Submitting score - finalScore:", initialFinalScore, "score:", initialScore);
   
-  // CRITICAL FIX: Create a guaranteed non-zero score value
+  // Create a guaranteed non-zero score value
   let guaranteedScore = 0;
   
   // Try all possible sources in order of preference
@@ -2310,7 +2279,7 @@ async function submitScore() {
     guaranteedScore = 1;
   }
   
-  console.log("SCORE FIX v3: Guaranteed score:", guaranteedScore);
+  console.log("Guaranteed score:", guaranteedScore);
   
   const email = emailInput.value.trim();
   
@@ -2321,14 +2290,14 @@ async function submitScore() {
     return;
   }
   
-  // CRITICAL FIX: Always use our guaranteed score
+  // Always use our guaranteed score
   window.finalGameStats = {
     score: guaranteedScore,
     level: initialLevel > 0 ? initialLevel : level,
     killStreak: initialKillStreak > 0 ? initialKillStreak : killStreak
   };
   
-  console.log("SCORE FIX v3: Final game stats:", window.finalGameStats);
+  console.log("Final game stats:", window.finalGameStats);
   
   // Pause game loop to prevent any further changes during submission
   noLoop();
@@ -2338,28 +2307,17 @@ async function submitScore() {
   submitButton.disabled = true;
   
   try {
-    // CRITICAL FIX v3: Use the getSupabaseClient function
-    const supabaseClient = window.getSupabaseClient();
+    // SIMPLIFIED APPROACH: Use localStorage for leaderboard
+    const result = window.gameLeaderboard.addScore(
+      email,
+      guaranteedScore,
+      window.finalGameStats.level,
+      window.finalGameStats.killStreak
+    );
     
-    if (!supabaseClient) {
-      throw new Error("Unable to connect to leaderboard service. Please refresh the page and try again.");
+    if (!result.success) {
+      throw new Error(result.error || "Failed to submit score");
     }
-    
-    console.log("SCORE FIX v3: Submitting score:", guaranteedScore);
-    
-    // Insert the new score
-    const { data, error } = await supabaseClient
-      .from('leaderboard')
-      .insert([
-        { 
-          player_email: email,
-          score: guaranteedScore,
-          level_reached: window.finalGameStats.level,
-          enemies_destroyed: window.finalGameStats.killStreak
-        }
-      ]);
-    
-    if (error) throw error;
     
     // Score was submitted successfully
     scoreSubmitted = true;
