@@ -78,40 +78,48 @@ function setup() {
     };
   }
   
-  // Initialize Supabase client
+  // CRITICAL FIX: Handle Supabase initialization more robustly
   try {
-    console.log("Initializing Supabase client in setup...");
+    console.log("Checking Supabase client in setup...");
     
-    // Check if window.supabase exists and has the required methods
-    if (window.supabase && typeof window.supabase.from === 'function') {
+    // First check if we already have a valid client
+    if (supabase && typeof supabase.from === 'function') {
+      console.log("Supabase client already initialized");
+    }
+    // Then check if window.supabase exists
+    else if (window.supabase && typeof window.supabase.from === 'function') {
       supabase = window.supabase;
-      console.log("Supabase client successfully initialized in sketch.js");
-    } else {
-      // Try to create a new client if we have the URL and key
-      if (window.SUPABASE_URL && window.SUPABASE_KEY) {
-        console.log("Attempting to create a new Supabase client...");
-        try {
-          // Make sure the Supabase library is loaded
-          if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
-            supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-            console.log("Successfully created new Supabase client");
-          } else {
-            throw new Error("Supabase library not loaded correctly. Make sure the Supabase script is included before sketch.js");
-          }
-        } catch (createError) {
-          console.error("Error creating Supabase client:", createError);
-          throw createError;
-        }
+      console.log("Using window.supabase client");
+    }
+    // If not, try to initialize it
+    else if (window.initSupabase && typeof window.initSupabase === 'function') {
+      console.log("Attempting to initialize Supabase client");
+      const success = window.initSupabase();
+      if (success) {
+        supabase = window.supabase;
+        console.log("Successfully initialized Supabase client");
       } else {
-        throw new Error("Supabase configuration missing. Make sure SUPABASE_URL and SUPABASE_KEY are defined.");
+        console.warn("Failed to initialize Supabase client, will retry later");
       }
     }
-    
-    // Schedule a cleanup of duplicate entries after initialization
-    setTimeout(() => {
-      fetchAndCleanupLeaderboard();
-    }, 5000); // Wait 5 seconds to make sure everything is loaded
-    
+    // If all else fails, set up a retry mechanism
+    else {
+      console.warn("Supabase not available yet, will retry initialization later");
+      
+      // Set up a retry mechanism
+      const checkSupabase = setInterval(function() {
+        if (window.supabase && typeof window.supabase.from === 'function') {
+          clearInterval(checkSupabase);
+          supabase = window.supabase;
+          console.log("Supabase client initialized after retry");
+        }
+      }, 1000);
+      
+      // Stop checking after 10 seconds
+      setTimeout(function() {
+        clearInterval(checkSupabase);
+      }, 10000);
+    }
   } catch (e) {
     console.error("Error initializing Supabase client in sketch.js:", e);
     leaderboardError = "Supabase client initialization failed: " + e.message;

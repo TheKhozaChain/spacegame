@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI SPACE DEFENDER</title>
+  <script src="https://unpkg.com/@supabase/supabase-js@2" defer></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.sound.min.js"></script>
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <style>
     body {
       margin: 0;
@@ -56,6 +56,14 @@
     .success {
       color: #33cc33;
     }
+    #version-indicator {
+      position: absolute;
+      bottom: 5px;
+      right: 5px;
+      font-size: 10px;
+      color: #666;
+      z-index: 1000;
+    }
   </style>
 </head>
 <body>
@@ -67,34 +75,17 @@
     <button id="cancel-submit">Cancel</button>
     <button id="share-button" style="display: none;">Share on Twitter</button>
   </div>
-  <script type="module">
-    // Import Supabase configuration with fallback for when the file is not available
-    let SUPABASE_URL, SUPABASE_KEY;
+  <div id="version-indicator">v1.0.4 (Supabase Fix)</div>
+  
+  <script>
+    // Global variables for Supabase
+    window.SUPABASE_URL = 'https://gnhtszddvxzszcipcydh.supabase.co';
+    window.SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImduaHRzemRkdnh6c3pjaXBjeWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1NTAxMTksImV4cCI6MjA1NjEyNjExOX0.cF8U1uJxRt1nuoBax6K8PTs5kZGYMEfeRN77bzi9thE';
     
-    try {
-      // Try to import from the config file
-      const config = await import('./supabase-config.js');
-      SUPABASE_URL = config.SUPABASE_URL;
-      SUPABASE_KEY = config.SUPABASE_KEY;
-      console.log("Successfully imported Supabase configuration from file");
-    } catch (error) {
-      // Fallback configuration for public deployment
-      // Using the anon/public key is safe as long as you have proper Row Level Security configured
-      console.log("Could not import Supabase configuration, using fallback");
-      SUPABASE_URL = 'https://gnhtszddvxzszcipcydh.supabase.co';
-      SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImduaHRzemRkdnh6c3pjaXBjeWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1NTAxMTksImV4cCI6MjA1NjEyNjExOX0.cF8U1uJxRt1nuoBax6K8PTs5kZGYMEfeRN77bzi9thE';
-    }
-    
-    // Make configuration available to the sketch.js file
-    window.SUPABASE_URL = SUPABASE_URL;
-    window.SUPABASE_KEY = SUPABASE_KEY;
-    
-    // FIXING SUPABASE CONNECTION ISSUE:
-    // Create the Supabase client and make it available globally
-    // This function can be called again if the connection is lost
+    // Function to initialize Supabase client
     window.initSupabase = function() {
       try {
-        console.log("Initializing Supabase client in index.html...");
+        console.log("Initializing Supabase client...");
         
         // Check if supabase is available
         if (typeof supabase === 'undefined') {
@@ -102,11 +93,11 @@
           return false;
         } else {
           // Create the client
-          window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+          window.supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
           
           // Verify the client was created correctly
           if (window.supabase && typeof window.supabase.from === 'function') {
-            console.log("Supabase client successfully initialized in index.html");
+            console.log("Supabase client successfully initialized");
             return true;
           } else {
             console.error("Supabase client was created but doesn't have the expected methods");
@@ -114,14 +105,30 @@
           }
         }
       } catch (error) {
-        console.error("Error initializing Supabase client in index.html:", error);
+        console.error("Error initializing Supabase client:", error);
         return false;
       }
     };
     
-    // Initialize Supabase on page load
-    window.initSupabase();
+    // Wait for Supabase library to load before initializing
+    window.addEventListener('DOMContentLoaded', function() {
+      // Check if Supabase is loaded
+      const checkSupabase = setInterval(function() {
+        if (typeof supabase !== 'undefined') {
+          clearInterval(checkSupabase);
+          console.log("Supabase library loaded, initializing client...");
+          window.initSupabase();
+        }
+      }, 100);
+      
+      // Timeout after 5 seconds to prevent infinite checking
+      setTimeout(function() {
+        clearInterval(checkSupabase);
+        console.warn("Timed out waiting for Supabase library to load");
+      }, 5000);
+    });
   </script>
-  <script src="sketch.js"></script>
+  
+  <script src="sketch.js" defer></script>
 </body>
 </html>
