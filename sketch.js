@@ -125,8 +125,8 @@ function draw() {
       
       console.log("Game over! Final stats captured:", window.finalGameStats);
       
-      // IMPORTANT: Stop the game loop to prevent any further updates
-      noLoop();
+      // IMPORTANT: We no longer stop the game loop here to allow interaction
+      // Instead, we'll just return to prevent further game updates
       return; // Exit the draw function to prevent further updates
     }
     
@@ -217,8 +217,9 @@ function draw() {
             
             console.log("Game over! Final stats captured:", window.finalGameStats);
             
-            // IMPORTANT: Stop the game loop to prevent any further updates
-            noLoop();
+            // IMPORTANT: We no longer stop the game loop here to allow interaction
+            // Instead, we'll just return from the draw function
+            return;
           }
         } else {
           // Player is in invincibility frames but still destroy the enemy
@@ -248,8 +249,9 @@ function draw() {
             
             console.log("Game over! Final stats captured:", window.finalGameStats);
             
-            // IMPORTANT: Stop the game loop to prevent any further updates
-            noLoop();
+            // IMPORTANT: We no longer stop the game loop here to allow interaction
+            // Instead, we'll just return from the draw function
+            return;
           }
         }
         // Add a visual indicator at the bottom of the screen
@@ -404,8 +406,9 @@ function draw() {
             
             console.log("Game over! Final stats captured:", window.finalGameStats);
             
-            // IMPORTANT: Stop the game loop to prevent any further updates
-            noLoop();
+            // IMPORTANT: We no longer stop the game loop here to allow interaction
+            // Instead, we'll just return from the draw function
+            return;
           }
         } else {
           // Player is in invincibility frames but still destroy the bullet
@@ -592,11 +595,8 @@ function drawGameOverScreen() {
     }
   }
   
-  // IMPORTANT: Ensure the game loop is stopped at game over
-  if (isLooping()) {
-    console.log("Game loop was still running at game over screen - stopping it");
-    noLoop();
-  }
+  // IMPORTANT: We no longer stop the game loop here to allow interaction with buttons
+  // Instead, we ensure the game state is properly set to prevent gameplay updates
   
   // Display final score
   text(`Final Score: ${finalScore}`, WIDTH / 2, HEIGHT / 4 + 40);
@@ -810,16 +810,27 @@ function mousePressed() {
     // Check if leaderboard button was clicked
     if (mouseX > WIDTH / 2 - 100 && mouseX < WIDTH / 2 + 100 &&
         mouseY > HEIGHT * 3/4 + 50 && mouseY < HEIGHT * 3/4 + 90) {
+      console.log("Leaderboard button clicked on title screen");
       fetchLeaderboard();
       gameState = "leaderboard";
+    }
+    
+    // Check if play button was clicked
+    if (mouseX > WIDTH / 2 - 100 && mouseX < WIDTH / 2 + 100 &&
+        mouseY > HEIGHT * 3/4 && mouseY < HEIGHT * 3/4 + 40) {
+      console.log("Play button clicked on title screen");
+      gameState = "playing";
     }
   }
   // Handle button clicks on game over screen
   else if (gameState === "gameOver") {
+    console.log("Mouse pressed on game over screen at", mouseX, mouseY);
+    
     // Check if submit to leaderboard button was clicked
     if (!scoreSubmitted &&
         mouseX > WIDTH / 2 - 150 && mouseX < WIDTH / 2 + 150 &&
         mouseY > HEIGHT / 4 + 260 && mouseY < HEIGHT / 4 + 300) {
+      console.log("Submit to leaderboard button clicked");
       
       // Make sure we have consistent game stats
       if (!window.finalGameStats) {
@@ -831,7 +842,7 @@ function mousePressed() {
         };
       }
       
-      // Pause game loop and show email form
+      // Show email form
       showEmailForm();
     }
     
@@ -2169,8 +2180,8 @@ async function fetchLeaderboard() {
 }
 
 function showEmailForm() {
-  // Ensure we're in a paused state while the form is open
-  noLoop();
+  // We no longer stop the game loop here to prevent freezing
+  // Instead, we'll just pause updates while the form is visible
   
   // FIXED: More robust handling of final score
   // First, find the best available score
@@ -2308,13 +2319,11 @@ function showEmailForm() {
 function hideEmailForm() {
   const formElement = document.getElementById('email-input');
   formElement.style.display = 'none';
-  emailInput.value = '';
   
   // Re-enable the submit button
   submitButton.disabled = false;
   
-  // Resume the game loop if it was paused
-  loop();
+  // We no longer need to restart the loop since we're not stopping it
 }
 
 async function submitScore() {
@@ -2371,8 +2380,7 @@ async function submitScore() {
   
   console.log("Final game stats:", window.finalGameStats);
   
-  // Pause game loop to prevent any further changes during submission
-  noLoop();
+  // We no longer need to pause/resume the game loop
   
   inputMessage.textContent = 'Submitting score...';
   inputMessage.className = '';
@@ -2437,9 +2445,6 @@ async function submitScore() {
     inputMessage.textContent = `Error: ${error.message}`;
     inputMessage.className = 'error';
     submitButton.disabled = false;
-  } finally {
-    // Resume game loop
-    loop();
   }
 }
 
