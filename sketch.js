@@ -78,8 +78,8 @@ function setup() {
     };
   }
   
-  // SIMPLIFIED APPROACH: No need to initialize Supabase anymore
-  console.log("Using localStorage for leaderboard");
+  // DIRECT API APPROACH: Using direct Supabase REST API calls
+  console.log("Using direct API calls for leaderboard");
   
   // Get DOM elements
   emailInput = document.getElementById('player-email');
@@ -2093,11 +2093,11 @@ async function fetchLeaderboard() {
   gameState = "leaderboard";
   
   try {
-    // SIMPLIFIED APPROACH: Use localStorage for leaderboard
-    console.log("Fetching leaderboard data from localStorage...");
+    // DIRECT API APPROACH: Use the supabaseApi object to fetch leaderboard data
+    console.log("Fetching leaderboard data via direct API...");
     
     // Get leaderboard data
-    leaderboardData = window.gameLeaderboard.getLeaderboard();
+    leaderboardData = await window.supabaseApi.getLeaderboard();
     
     console.log("Leaderboard data:", leaderboardData);
   } catch (error) {
@@ -2251,8 +2251,7 @@ function hideEmailForm() {
 }
 
 async function submitScore() {
-  // SIMPLIFIED APPROACH: Use localStorage for leaderboard
-  // Store the score values at the start of the function
+  // DIRECT API APPROACH: Store the score values at the start of the function
   const initialFinalScore = finalScore;
   const initialScore = score;
   const initialKillStreak = killStreak;
@@ -2307,17 +2306,13 @@ async function submitScore() {
   submitButton.disabled = true;
   
   try {
-    // SIMPLIFIED APPROACH: Use localStorage for leaderboard
-    const result = window.gameLeaderboard.addScore(
+    // DIRECT API APPROACH: Use the supabaseApi object to submit the score
+    await window.supabaseApi.addScore(
       email,
       guaranteedScore,
       window.finalGameStats.level,
       window.finalGameStats.killStreak
     );
-    
-    if (!result.success) {
-      throw new Error(result.error || "Failed to submit score");
-    }
     
     // Score was submitted successfully
     scoreSubmitted = true;

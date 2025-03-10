@@ -76,73 +76,94 @@
     <button id="cancel-submit">Cancel</button>
     <button id="share-button" style="display: none;">Share on Twitter</button>
   </div>
-  <div id="version-indicator">v1.0.7 (Local Storage Fix)</div>
+  <div id="version-indicator">v1.0.8 (Direct API Fix)</div>
   
-  <!-- SIMPLIFIED APPROACH: Use localStorage for leaderboard -->
+  <!-- DIRECT API APPROACH: Use fetch to communicate with Supabase -->
   <script>
-    // Simple leaderboard using localStorage
-    window.gameLeaderboard = {
-      // Get the leaderboard data from localStorage
-      getLeaderboard: function() {
+    // Supabase API configuration
+    const SUPABASE_URL = 'https://gnhtszddvxzszcipcydh.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImduaHRzemRkdnh6c3pjaXBjeWRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1NTAxMTksImV4cCI6MjA1NjEyNjExOX0.cF8U1uJxRt1nuoBax6K8PTs5kZGYMEfeRN77bzi9thE';
+    
+    // Make them available globally
+    window.SUPABASE_URL = SUPABASE_URL;
+    window.SUPABASE_KEY = SUPABASE_KEY;
+    
+    // Direct API client for Supabase
+    window.supabaseApi = {
+      // Fetch leaderboard data
+      async getLeaderboard() {
         try {
-          const leaderboardData = localStorage.getItem('spaceGameLeaderboard');
-          return leaderboardData ? JSON.parse(leaderboardData) : [];
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?order=score.desc&limit=100`, {
+            method: 'GET',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          console.log("Leaderboard data fetched successfully:", data.length, "entries");
+          return data;
         } catch (error) {
-          console.error("Error getting leaderboard:", error);
-          return [];
+          console.error("Error fetching leaderboard:", error);
+          throw error;
         }
       },
       
-      // Add a new score to the leaderboard
-      addScore: function(email, score, level, enemiesDestroyed) {
+      // Add a score to the leaderboard
+      async addScore(email, score, level, enemiesDestroyed) {
         try {
-          // Get current leaderboard
-          let leaderboard = this.getLeaderboard();
-          
-          // Add new entry
-          const newEntry = {
+          const payload = {
             player_email: email,
             score: score,
             level_reached: level,
-            enemies_destroyed: enemiesDestroyed,
-            created_at: new Date().toISOString()
+            enemies_destroyed: enemiesDestroyed
           };
           
-          // Check if this email already exists
-          const existingIndex = leaderboard.findIndex(entry => entry.player_email === email);
+          console.log("Submitting score:", payload);
           
-          // If email exists and new score is higher, replace it
-          if (existingIndex >= 0) {
-            if (leaderboard[existingIndex].score < score) {
-              leaderboard[existingIndex] = newEntry;
-            }
-          } else {
-            // Otherwise add new entry
-            leaderboard.push(newEntry);
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard`, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': `Bearer ${SUPABASE_KEY}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify(payload)
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`API error: ${response.status} - ${errorText}`);
           }
           
-          // Sort by score (highest first)
-          leaderboard.sort((a, b) => b.score - a.score);
-          
-          // Keep only top 100 scores
-          if (leaderboard.length > 100) {
-            leaderboard = leaderboard.slice(0, 100);
-          }
-          
-          // Save back to localStorage
-          localStorage.setItem('spaceGameLeaderboard', JSON.stringify(leaderboard));
-          
+          console.log("Score submitted successfully");
           return { success: true };
         } catch (error) {
-          console.error("Error adding score:", error);
-          return { success: false, error: error.message };
+          console.error("Error submitting score:", error);
+          throw error;
         }
       }
     };
     
-    // Make these available to sketch.js
-    window.SUPABASE_URL = 'dummy-url';
-    window.SUPABASE_KEY = 'dummy-key';
+    // Test the API connection on page load
+    window.addEventListener('load', async function() {
+      try {
+        console.log("Testing Supabase API connection...");
+        await window.supabaseApi.getLeaderboard();
+        console.log("Supabase API connection successful");
+        document.getElementById('version-indicator').textContent += " (API OK)";
+      } catch (error) {
+        console.error("Supabase API connection failed:", error);
+        document.getElementById('version-indicator').textContent += " (API Error)";
+      }
+    });
   </script>
   
   <!-- Load sketch.js after everything else -->
