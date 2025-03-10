@@ -78,60 +78,21 @@ function setup() {
     };
   }
   
-  // CRITICAL FIX v2: Handle Supabase initialization more robustly
+  // CRITICAL FIX v3: Use the new getSupabaseClient function
   try {
-    console.log("Checking Supabase client in setup...");
+    console.log("Getting Supabase client in setup...");
     
-    // First check if we already have a valid client
-    if (supabase && typeof supabase.from === 'function') {
-      console.log("Supabase client already initialized");
-    }
-    // Then check if window.supabaseClient exists (new approach)
-    else if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
-      supabase = window.supabaseClient;
-      console.log("Using window.supabaseClient");
-    }
-    // Then check if window.supabase exists (old approach)
-    else if (window.supabase && typeof window.supabase.from === 'function') {
-      supabase = window.supabase;
-      console.log("Using window.supabase client");
-    }
-    // If not, try to initialize it
-    else if (window.initSupabase && typeof window.initSupabase === 'function') {
-      console.log("Attempting to initialize Supabase client");
-      const success = window.initSupabase();
-      if (success) {
-        // Try both possible locations
-        supabase = window.supabaseClient || window.supabase;
-        console.log("Successfully initialized Supabase client");
-      } else {
-        console.warn("Failed to initialize Supabase client, will retry later");
-      }
-    }
-    // If all else fails, set up a retry mechanism
-    else {
-      console.warn("Supabase not available yet, will retry initialization later");
-      
-      // Set up a retry mechanism
-      const checkSupabase = setInterval(function() {
-        if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
-          clearInterval(checkSupabase);
-          supabase = window.supabaseClient;
-          console.log("Supabase client initialized after retry");
-        } else if (window.supabase && typeof window.supabase.from === 'function') {
-          clearInterval(checkSupabase);
-          supabase = window.supabase;
-          console.log("Supabase client initialized after retry (old approach)");
-        }
-      }, 1000);
-      
-      // Stop checking after 10 seconds
-      setTimeout(function() {
-        clearInterval(checkSupabase);
-      }, 10000);
+    // Get the Supabase client using the new function
+    supabase = window.getSupabaseClient();
+    
+    if (supabase) {
+      console.log("Successfully got Supabase client");
+    } else {
+      console.warn("Failed to get Supabase client, leaderboard features may not work");
+      leaderboardError = "Supabase client initialization failed";
     }
   } catch (e) {
-    console.error("Error initializing Supabase client in sketch.js:", e);
+    console.error("Error getting Supabase client:", e);
     leaderboardError = "Supabase client initialization failed: " + e.message;
   }
   
@@ -2147,33 +2108,11 @@ async function fetchLeaderboard() {
   gameState = "leaderboard";
   
   try {
-    // CRITICAL FIX v2: Use the supabaseClient directly from window
-    // This ensures we're using the properly initialized client
-    let supabaseClient;
+    // CRITICAL FIX v3: Use the getSupabaseClient function
+    const supabaseClient = window.getSupabaseClient();
     
-    // First try to get the client from window.supabaseClient (new approach)
-    if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
-      console.log("Using window.supabaseClient for leaderboard");
-      supabaseClient = window.supabaseClient;
-    }
-    // Then try window.supabase (old approach)
-    else if (window.supabase && typeof window.supabase.from === 'function') {
-      console.log("Using window.supabase for leaderboard");
-      supabaseClient = window.supabase;
-    }
-    // Try to initialize if not available
-    else if (window.initSupabase && typeof window.initSupabase === 'function') {
-      console.log("Attempting to initialize Supabase client");
-      const success = window.initSupabase();
-      if (success && window.supabaseClient) {
-        supabaseClient = window.supabaseClient;
-      } else if (success && window.supabase) {
-        supabaseClient = window.supabase;
-      } else {
-        throw new Error("Unable to initialize Supabase client. Please refresh the page and try again.");
-      }
-    } else {
-      throw new Error("Supabase client not available. Please refresh the page and try again.");
+    if (!supabaseClient) {
+      throw new Error("Unable to connect to leaderboard service. Please refresh the page and try again.");
     }
     
     console.log("Fetching leaderboard data...");
@@ -2350,7 +2289,7 @@ async function submitScore() {
   const initialLevel = level;
   
   // Store these values in a local variable that won't be affected by async operations
-  console.log("SCORE FIX v2: Capturing initial scores - finalScore:", initialFinalScore, "score:", initialScore);
+  console.log("SCORE FIX v3: Capturing initial scores - finalScore:", initialFinalScore, "score:", initialScore);
   
   // CRITICAL FIX: Create a guaranteed non-zero score value
   let guaranteedScore = 0;
@@ -2371,7 +2310,7 @@ async function submitScore() {
     guaranteedScore = 1;
   }
   
-  console.log("SCORE FIX v2: Guaranteed score:", guaranteedScore);
+  console.log("SCORE FIX v3: Guaranteed score:", guaranteedScore);
   
   const email = emailInput.value.trim();
   
@@ -2389,7 +2328,7 @@ async function submitScore() {
     killStreak: initialKillStreak > 0 ? initialKillStreak : killStreak
   };
   
-  console.log("SCORE FIX v2: Final game stats:", window.finalGameStats);
+  console.log("SCORE FIX v3: Final game stats:", window.finalGameStats);
   
   // Pause game loop to prevent any further changes during submission
   noLoop();
@@ -2399,36 +2338,14 @@ async function submitScore() {
   submitButton.disabled = true;
   
   try {
-    // CRITICAL FIX v2: Use the supabaseClient directly from window
-    // This ensures we're using the properly initialized client
-    let supabaseClient;
+    // CRITICAL FIX v3: Use the getSupabaseClient function
+    const supabaseClient = window.getSupabaseClient();
     
-    // First try to get the client from window.supabaseClient (new approach)
-    if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
-      console.log("Using window.supabaseClient for submission");
-      supabaseClient = window.supabaseClient;
-    }
-    // Then try window.supabase (old approach)
-    else if (window.supabase && typeof window.supabase.from === 'function') {
-      console.log("Using window.supabase for submission");
-      supabaseClient = window.supabase;
-    }
-    // Try to initialize if not available
-    else if (window.initSupabase && typeof window.initSupabase === 'function') {
-      console.log("Attempting to initialize Supabase client");
-      const success = window.initSupabase();
-      if (success && window.supabaseClient) {
-        supabaseClient = window.supabaseClient;
-      } else if (success && window.supabase) {
-        supabaseClient = window.supabase;
-      } else {
-        throw new Error("Unable to initialize Supabase client. Please refresh the page and try again.");
-      }
-    } else {
-      throw new Error("Supabase client not available. Please refresh the page and try again.");
+    if (!supabaseClient) {
+      throw new Error("Unable to connect to leaderboard service. Please refresh the page and try again.");
     }
     
-    console.log("SCORE FIX v2: Submitting score:", guaranteedScore);
+    console.log("SCORE FIX v3: Submitting score:", guaranteedScore);
     
     // Insert the new score
     const { data, error } = await supabaseClient
