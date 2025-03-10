@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI SPACE DEFENDER</title>
-  <script src="https://unpkg.com/@supabase/supabase-js@2" defer></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.sound.min.js"></script>
   <style>
@@ -75,7 +75,7 @@
     <button id="cancel-submit">Cancel</button>
     <button id="share-button" style="display: none;">Share on Twitter</button>
   </div>
-  <div id="version-indicator">v1.0.4 (Supabase Fix)</div>
+  <div id="version-indicator">v1.0.5 (Supabase CDN Fix)</div>
   
   <script>
     // Global variables for Supabase
@@ -87,22 +87,31 @@
       try {
         console.log("Initializing Supabase client...");
         
-        // Check if supabase is available
-        if (typeof supabase === 'undefined') {
-          console.error("Error: supabase is not defined. Make sure the Supabase library is loaded correctly.");
-          return false;
-        } else {
+        // The CDN version of Supabase makes the createClient available on the global window object
+        if (typeof window.supabaseClient !== 'undefined') {
+          console.log("Using existing Supabase client");
+          return true;
+        }
+        
+        // Check if the global supabase object is available from the CDN
+        if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
           // Create the client
-          window.supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+          window.supabaseClient = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
+          
+          // Make it available as window.supabase for compatibility with existing code
+          window.supabase = window.supabaseClient;
           
           // Verify the client was created correctly
-          if (window.supabase && typeof window.supabase.from === 'function') {
+          if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
             console.log("Supabase client successfully initialized");
             return true;
           } else {
             console.error("Supabase client was created but doesn't have the expected methods");
             return false;
           }
+        } else {
+          console.error("Error: supabase is not defined. The Supabase library may not be loaded correctly.");
+          return false;
         }
       } catch (error) {
         console.error("Error initializing Supabase client:", error);
@@ -110,25 +119,21 @@
       }
     };
     
-    // Wait for Supabase library to load before initializing
-    window.addEventListener('DOMContentLoaded', function() {
-      // Check if Supabase is loaded
-      const checkSupabase = setInterval(function() {
-        if (typeof supabase !== 'undefined') {
-          clearInterval(checkSupabase);
-          console.log("Supabase library loaded, initializing client...");
+    // Initialize immediately since we're not using defer anymore
+    document.addEventListener('DOMContentLoaded', function() {
+      // Try to initialize Supabase
+      window.initSupabase();
+      
+      // Set up a backup initialization in case the first one fails
+      setTimeout(function() {
+        if (!window.supabaseClient) {
+          console.log("Retrying Supabase initialization...");
           window.initSupabase();
         }
-      }, 100);
-      
-      // Timeout after 5 seconds to prevent infinite checking
-      setTimeout(function() {
-        clearInterval(checkSupabase);
-        console.warn("Timed out waiting for Supabase library to load");
-      }, 5000);
+      }, 1000);
     });
   </script>
   
-  <script src="sketch.js" defer></script>
+  <script src="sketch.js"></script>
 </body>
 </html>

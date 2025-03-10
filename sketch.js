@@ -78,7 +78,7 @@ function setup() {
     };
   }
   
-  // CRITICAL FIX: Handle Supabase initialization more robustly
+  // CRITICAL FIX v2: Handle Supabase initialization more robustly
   try {
     console.log("Checking Supabase client in setup...");
     
@@ -86,7 +86,12 @@ function setup() {
     if (supabase && typeof supabase.from === 'function') {
       console.log("Supabase client already initialized");
     }
-    // Then check if window.supabase exists
+    // Then check if window.supabaseClient exists (new approach)
+    else if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
+      supabase = window.supabaseClient;
+      console.log("Using window.supabaseClient");
+    }
+    // Then check if window.supabase exists (old approach)
     else if (window.supabase && typeof window.supabase.from === 'function') {
       supabase = window.supabase;
       console.log("Using window.supabase client");
@@ -96,7 +101,8 @@ function setup() {
       console.log("Attempting to initialize Supabase client");
       const success = window.initSupabase();
       if (success) {
-        supabase = window.supabase;
+        // Try both possible locations
+        supabase = window.supabaseClient || window.supabase;
         console.log("Successfully initialized Supabase client");
       } else {
         console.warn("Failed to initialize Supabase client, will retry later");
@@ -108,10 +114,14 @@ function setup() {
       
       // Set up a retry mechanism
       const checkSupabase = setInterval(function() {
-        if (window.supabase && typeof window.supabase.from === 'function') {
+        if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
+          clearInterval(checkSupabase);
+          supabase = window.supabaseClient;
+          console.log("Supabase client initialized after retry");
+        } else if (window.supabase && typeof window.supabase.from === 'function') {
           clearInterval(checkSupabase);
           supabase = window.supabase;
-          console.log("Supabase client initialized after retry");
+          console.log("Supabase client initialized after retry (old approach)");
         }
       }, 1000);
       
@@ -2134,133 +2144,53 @@ function spawnBoss() {
 async function fetchLeaderboard() {
   isLoadingLeaderboard = true;
   leaderboardError = null;
-  
-  // Save any current game entry before fetching
-  const currentGameEntry = leaderboardData.find(entry => entry.isCurrentGame);
+  gameState = "leaderboard";
   
   try {
-    console.log("Starting fetchLeaderboard function...");
+    // CRITICAL FIX v2: Use the supabaseClient directly from window
+    // This ensures we're using the properly initialized client
+    let supabaseClient;
     
-    // ENHANCED ROBUST SUPABASE CONNECTION FIX:
-    // Always ensure we have a working Supabase client before fetching
-    let supabaseConnected = false;
-    
-    // 1. First attempt: Use window.initSupabase if available (most reliable method)
-    if (window.initSupabase && typeof window.initSupabase === 'function') {
-      console.log("Initializing fresh Supabase client using window.initSupabase");
+    // First try to get the client from window.supabaseClient (new approach)
+    if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
+      console.log("Using window.supabaseClient for leaderboard");
+      supabaseClient = window.supabaseClient;
+    }
+    // Then try window.supabase (old approach)
+    else if (window.supabase && typeof window.supabase.from === 'function') {
+      console.log("Using window.supabase for leaderboard");
+      supabaseClient = window.supabase;
+    }
+    // Try to initialize if not available
+    else if (window.initSupabase && typeof window.initSupabase === 'function') {
+      console.log("Attempting to initialize Supabase client");
       const success = window.initSupabase();
-      if (success) {
-        supabase = window.supabase;
-        console.log("Successfully initialized fresh Supabase client");
-        supabaseConnected = true;
+      if (success && window.supabaseClient) {
+        supabaseClient = window.supabaseClient;
+      } else if (success && window.supabase) {
+        supabaseClient = window.supabase;
+      } else {
+        throw new Error("Unable to initialize Supabase client. Please refresh the page and try again.");
       }
+    } else {
+      throw new Error("Supabase client not available. Please refresh the page and try again.");
     }
     
-    // 2. Second attempt: Try to access the already created client
-    if (!supabaseConnected && window.supabase && typeof window.supabase.from === 'function') {
-      console.log("Using existing Supabase client from window object");
-      supabase = window.supabase;
-      supabaseConnected = true;
-    }
+    console.log("Fetching leaderboard data...");
     
-    // 3. Third attempt: Create a new client directly using the library
-    if (!supabaseConnected && window.SUPABASE_URL && window.SUPABASE_KEY) {
-      console.log("Creating new Supabase client directly for fetchLeaderboard");
-      try {
-        // Verify the supabase library is loaded properly
-        if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
-          supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-          
-          // Verify the client was created successfully
-          if (supabase && typeof supabase.from === 'function') {
-            console.log("Successfully created new Supabase client");
-            // Store it in the window for future use
-            window.supabase = supabase;
-            supabaseConnected = true;
-          }
-        }
-      } catch (e) {
-        console.error("Error creating new Supabase client:", e);
-      }
-    }
-    
-    // If still not connected, try one more approach with global scope
-    if (!supabaseConnected) {
-      console.log("Attempting last resort method to create Supabase client");
-      try {
-        // Try to create a client using the global object if it exists
-        if (typeof window.supabase === 'object' && typeof window.supabase.createClient === 'function') {
-          supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-          supabaseConnected = true;
-        } else if (typeof supabase === 'object' && typeof supabase.createClient === 'function') {
-          supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-          supabaseConnected = true;
-        }
-      } catch (e) {
-        console.error("Last resort method failed:", e);
-      }
-    }
-    
-    // If all attempts failed, throw an error
-    if (!supabaseConnected || !supabase || typeof supabase.from !== 'function') {
-      throw new Error("Unable to connect to leaderboard service. Please refresh the page and try again.");
-    }
-    
-    console.log("Attempting to fetch leaderboard data with a valid Supabase client...");
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('leaderboard')
       .select('*')
       .order('score', { ascending: false })
-      .limit(20); // Get more entries initially to handle duplicates
+      .limit(100);
     
     if (error) throw error;
     
-    // Filter out any entries with score 0
-    const filteredData = (data || []).filter(entry => entry.score > 0);
-    
-    // Handle duplicate emails - keep only the highest score for each email
-    const uniqueData = [];
-    const emailsProcessed = new Set();
-    
-    // Process entries in order (highest score first)
-    for (const entry of filteredData) {
-      if (!emailsProcessed.has(entry.player_email)) {
-        uniqueData.push(entry);
-        emailsProcessed.add(entry.player_email);
-        
-        // Only keep top 10 after deduplication
-        if (uniqueData.length >= 10) {
-          break;
-        }
-      }
-    }
-    
-    leaderboardData = uniqueData;
-    console.log("Leaderboard data after deduplication:", leaderboardData);
-    
-    // If we have multiple entries for the same email in the database, clean them up
-    if (filteredData.length > uniqueData.length) {
-      cleanupDuplicateEntries(filteredData);
-    }
-    
-    // Re-add current game entry if it exists and has a score > 0
-    if (currentGameEntry && currentGameEntry.score > 0) {
-      leaderboardData.push(currentGameEntry);
-      // Sort by score in descending order
-      leaderboardData.sort((a, b) => b.score - a.score);
-    }
+    leaderboardData = data || [];
+    console.log("Leaderboard data:", leaderboardData);
   } catch (error) {
     console.error("Error fetching leaderboard:", error);
-    leaderboardError = error.message || "Failed to load leaderboard";
-    
-    // Additional debugging (removed sensitive information)
-    console.log("Supabase client initialized:", !!supabase);
-    
-    // If we have a current game entry with score > 0, make sure it's still displayed
-    if (currentGameEntry && currentGameEntry.score > 0 && !leaderboardData.some(entry => entry.isCurrentGame)) {
-      leaderboardData.push(currentGameEntry);
-      leaderboardData.sort((a, b) => b.score - a.score);
-    }
+    leaderboardError = error.message || "Failed to fetch leaderboard";
   } finally {
     isLoadingLeaderboard = false;
   }
@@ -2409,14 +2339,39 @@ function hideEmailForm() {
 }
 
 async function submitScore() {
-  // FIXED: Store the score values immediately at the start of the function
+  // CRITICAL FIX: Force a delay to ensure all variables are properly initialized
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
+  // CRITICAL FIX: Store the score values immediately at the start of the function
   // This prevents issues with longer emails causing score to reset
   const initialFinalScore = finalScore;
   const initialScore = score;
   const initialKillStreak = killStreak;
+  const initialLevel = level;
   
   // Store these values in a local variable that won't be affected by async operations
-  console.log("SCORE FIX: Capturing initial scores - finalScore:", initialFinalScore, "score:", initialScore);
+  console.log("SCORE FIX v2: Capturing initial scores - finalScore:", initialFinalScore, "score:", initialScore);
+  
+  // CRITICAL FIX: Create a guaranteed non-zero score value
+  let guaranteedScore = 0;
+  
+  // Try all possible sources in order of preference
+  if (window.finalGameStats && window.finalGameStats.score > 0) {
+    guaranteedScore = window.finalGameStats.score;
+  } else if (initialFinalScore > 0) {
+    guaranteedScore = initialFinalScore;
+  } else if (finalScore > 0) {
+    guaranteedScore = finalScore;
+  } else if (initialScore > 0) {
+    guaranteedScore = initialScore;
+  } else if (score > 0) {
+    guaranteedScore = score;
+  } else {
+    // Absolute fallback - if somehow all scores are 0, use 1 as minimum
+    guaranteedScore = 1;
+  }
+  
+  console.log("SCORE FIX v2: Guaranteed score:", guaranteedScore);
   
   const email = emailInput.value.trim();
   
@@ -2427,138 +2382,61 @@ async function submitScore() {
     return;
   }
   
-  // FIXED: Added robust score handling to prevent issues with longer emails
-  // Ensure we always have valid game stats to submit
-  console.log("DEBUG - Before fixes - finalScore:", finalScore, "score:", score);
-  console.log("DEBUG - Initial window.finalGameStats:", window.finalGameStats);
-  
-  // First make sure we have valid non-zero scores
-  let actualScore = 0;
-  
-  // Try all possible sources for the score, in order of preference
-  if (window.finalGameStats && window.finalGameStats.score > 0) {
-    actualScore = window.finalGameStats.score;
-    console.log("DEBUG - Using score from window.finalGameStats:", actualScore);
-  } else if (initialFinalScore > 0) {
-    actualScore = initialFinalScore;
-    console.log("DEBUG - Using captured initialFinalScore:", actualScore);
-  } else if (finalScore > 0) {
-    actualScore = finalScore;
-    console.log("DEBUG - Using current finalScore:", actualScore);
-  } else if (initialScore > 0) {
-    actualScore = initialScore;
-    console.log("DEBUG - Using captured initialScore:", actualScore);
-  } else if (score > 0) {
-    actualScore = score;
-    console.log("DEBUG - Using current score:", actualScore);
-  }
-  
-  // Always recreate finalGameStats with the guaranteed score value
+  // CRITICAL FIX: Always use our guaranteed score
   window.finalGameStats = {
-    score: actualScore,
-    level: level,
+    score: guaranteedScore,
+    level: initialLevel > 0 ? initialLevel : level,
     killStreak: initialKillStreak > 0 ? initialKillStreak : killStreak
   };
   
-  console.log("DEBUG - After fixes - window.finalGameStats:", window.finalGameStats);
-
-  // FIXED: Store the score in a local variable to prevent it from being lost
-  // This is critical for longer email processing which might take more time
-  const scoreToSubmit = actualScore; // Use actualScore directly instead of gameStats.score
-  
-  // Prevent submission of 0 scores with improved handling
-  if (scoreToSubmit <= 0) {
-    // Extra protection - try one more time to get a valid score
-    if (initialFinalScore > 0 || initialScore > 0 || finalScore > 0 || score > 0) {
-      const bestScore = Math.max(initialFinalScore, initialScore, finalScore, score);
-      console.log("EMERGENCY FIX - Setting score to best available score:", bestScore);
-      window.finalGameStats.score = bestScore;
-      // Continue with submission since we fixed the score
-      // Use the bestScore directly for submission below
-      inputMessage.textContent = 'Score fixed. Submitting your score of ' + bestScore;
-      inputMessage.className = 'success';
-    } else {
-      inputMessage.textContent = `Cannot submit a score of 0. Please try again.`;
-      inputMessage.className = 'error';
-      return;
-    }
-  }
-  
-  // FIXED: Store the final score to submit in a separate variable that won't be affected by async operations
-  const finalScoreToSubmit = scoreToSubmit <= 0 ? Math.max(initialFinalScore, initialScore, finalScore, score) : scoreToSubmit;
+  console.log("SCORE FIX v2: Final game stats:", window.finalGameStats);
   
   // Pause game loop to prevent any further changes during submission
   noLoop();
-  
-  // Debug display
-  console.log("Submitting score:", finalScoreToSubmit);
-  console.log("Current game state - score:", score, "finalScore:", finalScore, "killStreak:", killStreak);
-  console.log("window.finalGameStats:", window.finalGameStats);
   
   inputMessage.textContent = 'Submitting score...';
   inputMessage.className = '';
   submitButton.disabled = true;
   
   try {
-    // ENHANCED ROBUST SUPABASE CONNECTION FIX:
-    // Always force a fresh Supabase client before submission
-    let supabaseConnected = false;
+    // CRITICAL FIX v2: Use the supabaseClient directly from window
+    // This ensures we're using the properly initialized client
+    let supabaseClient;
     
-    // 1. First attempt: Use window.initSupabase if available (most reliable method)
-    if (window.initSupabase && typeof window.initSupabase === 'function') {
-      console.log("Initializing fresh Supabase client using window.initSupabase");
+    // First try to get the client from window.supabaseClient (new approach)
+    if (window.supabaseClient && typeof window.supabaseClient.from === 'function') {
+      console.log("Using window.supabaseClient for submission");
+      supabaseClient = window.supabaseClient;
+    }
+    // Then try window.supabase (old approach)
+    else if (window.supabase && typeof window.supabase.from === 'function') {
+      console.log("Using window.supabase for submission");
+      supabaseClient = window.supabase;
+    }
+    // Try to initialize if not available
+    else if (window.initSupabase && typeof window.initSupabase === 'function') {
+      console.log("Attempting to initialize Supabase client");
       const success = window.initSupabase();
-      if (success) {
-        supabase = window.supabase;
-        console.log("Successfully initialized fresh Supabase client");
-        supabaseConnected = true;
+      if (success && window.supabaseClient) {
+        supabaseClient = window.supabaseClient;
+      } else if (success && window.supabase) {
+        supabaseClient = window.supabase;
+      } else {
+        throw new Error("Unable to initialize Supabase client. Please refresh the page and try again.");
       }
+    } else {
+      throw new Error("Supabase client not available. Please refresh the page and try again.");
     }
     
-    // 2. Second attempt: Try to access the already created client
-    if (!supabaseConnected && window.supabase && typeof window.supabase.from === 'function') {
-      console.log("Using existing Supabase client from window object");
-      supabase = window.supabase;
-      supabaseConnected = true;
-    }
-    
-    // 3. Third attempt: Create a new client directly using the library
-    if (!supabaseConnected && window.SUPABASE_URL && window.SUPABASE_KEY) {
-      console.log("Creating new Supabase client directly");
-      try {
-        // Verify the supabase library is loaded properly
-        if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function') {
-          supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_KEY);
-          
-          // Verify the client was created successfully
-          if (supabase && typeof supabase.from === 'function') {
-            console.log("Successfully created new Supabase client");
-            // Store it in the window for future use
-            window.supabase = supabase;
-            supabaseConnected = true;
-          }
-        }
-      } catch (e) {
-        console.error("Error creating new Supabase client:", e);
-      }
-    }
-    
-    // If all attempts failed, throw an error
-    if (!supabaseConnected || !supabase || typeof supabase.from !== 'function') {
-      throw new Error("Unable to connect to leaderboard service. Please refresh the page and try again.");
-    }
-    
-    // FIXED: Use the finalScoreToSubmit variable for submission to ensure we use the correct score
-    // This prevents issues with longer emails where the score might be reset during processing
-    console.log("Final score being submitted:", finalScoreToSubmit);
+    console.log("SCORE FIX v2: Submitting score:", guaranteedScore);
     
     // Insert the new score
-    const { data, error } = await supabase
+    const { data, error } = await supabaseClient
       .from('leaderboard')
       .insert([
         { 
           player_email: email,
-          score: finalScoreToSubmit, // Use the protected score variable
+          score: guaranteedScore,
           level_reached: window.finalGameStats.level,
           enemies_destroyed: window.finalGameStats.killStreak
         }
@@ -2568,46 +2446,30 @@ async function submitScore() {
     
     // Score was submitted successfully
     scoreSubmitted = true;
-    inputMessage.textContent = `Score ${finalScoreToSubmit} submitted successfully!`;
+    inputMessage.textContent = `Score ${guaranteedScore} submitted successfully!`;
     inputMessage.className = 'success';
     shareButton.style.display = 'inline-block';
     
-    // Fetch updated leaderboard
-    fetchLeaderboard();
-    
-    // Add a view leaderboard button
-    let viewLeaderboardAfterSubmit;
-    
-    // Check if the button already exists
+    // Create a "View Leaderboard" button if it doesn't exist
     if (!document.getElementById('view-leaderboard-after-submit')) {
-      viewLeaderboardAfterSubmit = document.createElement('button');
-      viewLeaderboardAfterSubmit.textContent = 'View Leaderboard';
-      viewLeaderboardAfterSubmit.id = 'view-leaderboard-after-submit';
-      viewLeaderboardAfterSubmit.style.marginTop = '10px';
-      viewLeaderboardAfterSubmit.style.backgroundColor = '#6666ff';
-      document.getElementById('email-input').appendChild(viewLeaderboardAfterSubmit);
-    } else {
-      viewLeaderboardAfterSubmit = document.getElementById('view-leaderboard-after-submit');
+      const viewLeaderboardButton = document.createElement('button');
+      viewLeaderboardButton.id = 'view-leaderboard-after-submit';
+      viewLeaderboardButton.textContent = 'View Leaderboard';
+      viewLeaderboardButton.onclick = function() {
+        hideEmailForm();
+        fetchLeaderboard();
+      };
+      
+      // Insert after share button
+      shareButton.parentNode.insertBefore(viewLeaderboardButton, shareButton.nextSibling);
     }
-    
-    // Add event listener for the view leaderboard button
-    viewLeaderboardAfterSubmit.onclick = function() {
-      hideEmailForm();
-      gameState = "leaderboard";
-    };
-    
-    // Hide form after a delay
-    setTimeout(() => {
-      hideEmailForm();
-    }, 5000); // Increased to 5 seconds to give more time to click the button
-    
   } catch (error) {
     console.error("Error submitting score:", error);
-    inputMessage.textContent = error.message || 'Failed to submit score';
+    inputMessage.textContent = `Error: ${error.message}`;
     inputMessage.className = 'error';
     submitButton.disabled = false;
-    
-    // Resume game loop in case of error
+  } finally {
+    // Resume game loop
     loop();
   }
 }
