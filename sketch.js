@@ -2245,8 +2245,15 @@ function showEmailForm() {
     }
   }
   
-  // If all attempts failed, show an alert and return to the game
-  if (!supabaseConnected || !supabase || typeof supabase.from !== 'function') {
+  // NEW FALLBACK: Use window.supabaseApi if available
+  if (!supabaseConnected && window.supabaseApi) {
+    console.log("Using window.supabaseApi as fallback for supabase client");
+    supabase = window.supabaseApi;
+    supabaseConnected = true;
+  }
+  
+  // Modified final check: allow a client with either a .from or .addScore method
+  if (!supabaseConnected || !supabase || (typeof supabase.from !== 'function' && typeof supabase.addScore !== 'function')) {
     console.error("Supabase client still not initialized, cannot show form");
     alert("Unable to connect to leaderboard service. Please refresh the page and try again.");
     loop(); // Resume game loop if we can't show the form
