@@ -2401,6 +2401,15 @@ function hideEmailForm() {
 }
 
 async function submitScore() {
+  // FIXED: Store the score values immediately at the start of the function
+  // This prevents issues with longer emails causing score to reset
+  const initialFinalScore = finalScore;
+  const initialScore = score;
+  const initialKillStreak = killStreak;
+  
+  // Store these values in a local variable that won't be affected by async operations
+  console.log("SCORE FIX: Capturing initial scores - finalScore:", initialFinalScore, "score:", initialScore);
+  
   const email = emailInput.value.trim();
   
   // Validate email
@@ -2422,9 +2431,15 @@ async function submitScore() {
   if (window.finalGameStats && window.finalGameStats.score > 0) {
     actualScore = window.finalGameStats.score;
     console.log("DEBUG - Using score from window.finalGameStats:", actualScore);
+  } else if (initialFinalScore > 0) {
+    actualScore = initialFinalScore;
+    console.log("DEBUG - Using captured initialFinalScore:", actualScore);
   } else if (finalScore > 0) {
     actualScore = finalScore;
-    console.log("DEBUG - Using finalScore:", actualScore);
+    console.log("DEBUG - Using current finalScore:", actualScore);
+  } else if (initialScore > 0) {
+    actualScore = initialScore;
+    console.log("DEBUG - Using captured initialScore:", actualScore);
   } else if (score > 0) {
     actualScore = score;
     console.log("DEBUG - Using current score:", actualScore);
@@ -2434,7 +2449,7 @@ async function submitScore() {
   window.finalGameStats = {
     score: actualScore,
     level: level,
-    killStreak: killStreak
+    killStreak: initialKillStreak > 0 ? initialKillStreak : killStreak
   };
   
   console.log("DEBUG - After fixes - window.finalGameStats:", window.finalGameStats);
@@ -2446,8 +2461,8 @@ async function submitScore() {
   // Prevent submission of 0 scores with improved handling
   if (scoreToSubmit <= 0) {
     // Extra protection - try one more time to get a valid score
-    if (finalScore > 0 || score > 0) {
-      const bestScore = Math.max(finalScore, score);
+    if (initialFinalScore > 0 || initialScore > 0 || finalScore > 0 || score > 0) {
+      const bestScore = Math.max(initialFinalScore, initialScore, finalScore, score);
       console.log("EMERGENCY FIX - Setting score to best available score:", bestScore);
       window.finalGameStats.score = bestScore;
       // Continue with submission since we fixed the score
@@ -2462,7 +2477,7 @@ async function submitScore() {
   }
   
   // FIXED: Store the final score to submit in a separate variable that won't be affected by async operations
-  const finalScoreToSubmit = scoreToSubmit <= 0 ? Math.max(finalScore, score) : scoreToSubmit;
+  const finalScoreToSubmit = scoreToSubmit <= 0 ? Math.max(initialFinalScore, initialScore, finalScore, score) : scoreToSubmit;
   
   // Pause game loop to prevent any further changes during submission
   noLoop();
