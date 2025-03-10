@@ -125,6 +125,8 @@ function draw() {
       
       console.log("Game over! Final stats captured:", window.finalGameStats);
       
+      // IMPORTANT: Stop the game loop to prevent any further updates
+      noLoop();
       return; // Exit the draw function to prevent further updates
     }
     
@@ -214,6 +216,9 @@ function draw() {
             };
             
             console.log("Game over! Final stats captured:", window.finalGameStats);
+            
+            // IMPORTANT: Stop the game loop to prevent any further updates
+            noLoop();
           }
         } else {
           // Player is in invincibility frames but still destroy the enemy
@@ -242,6 +247,9 @@ function draw() {
             };
             
             console.log("Game over! Final stats captured:", window.finalGameStats);
+            
+            // IMPORTANT: Stop the game loop to prevent any further updates
+            noLoop();
           }
         }
         // Add a visual indicator at the bottom of the screen
@@ -395,6 +403,9 @@ function draw() {
             };
             
             console.log("Game over! Final stats captured:", window.finalGameStats);
+            
+            // IMPORTANT: Stop the game loop to prevent any further updates
+            noLoop();
           }
         } else {
           // Player is in invincibility frames but still destroy the bullet
@@ -579,6 +590,12 @@ function drawGameOverScreen() {
     } else {
       window.finalGameStats.score = finalScore;
     }
+  }
+  
+  // IMPORTANT: Ensure the game loop is stopped at game over
+  if (isLooping()) {
+    console.log("Game loop was still running at game over screen - stopping it");
+    noLoop();
   }
   
   // Display final score
@@ -2315,17 +2332,23 @@ async function submitScore() {
   // Try all possible sources in order of preference
   if (window.finalGameStats && window.finalGameStats.score > 0) {
     guaranteedScore = window.finalGameStats.score;
+    console.log("Using score from window.finalGameStats:", guaranteedScore);
   } else if (initialFinalScore > 0) {
     guaranteedScore = initialFinalScore;
+    console.log("Using initialFinalScore:", guaranteedScore);
   } else if (finalScore > 0) {
     guaranteedScore = finalScore;
+    console.log("Using finalScore:", guaranteedScore);
   } else if (initialScore > 0) {
     guaranteedScore = initialScore;
+    console.log("Using initialScore:", guaranteedScore);
   } else if (score > 0) {
     guaranteedScore = score;
+    console.log("Using current score:", guaranteedScore);
   } else {
     // Absolute fallback - if somehow all scores are 0, use 1 as minimum
     guaranteedScore = 1;
+    console.log("Using fallback minimum score:", guaranteedScore);
   }
   
   console.log("Guaranteed score:", guaranteedScore);
