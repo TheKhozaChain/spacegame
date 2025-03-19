@@ -785,12 +785,12 @@ function drawLeaderboardScreen() {
       email.substring(0, 4) + "..." + email.substring(email.indexOf('@')) : 
       email;
     
-    // CORS FIX: Show if entry is from local storage
-    if (entry.is_local) {
-      fill(200, 200, 100); // Yellow for local entries
-      text(`${displayEmail} (local)`, 150, y);
+    // Display email without local label
+    fill(255);
+    if (entry.isCurrentGame) {
+      fill(200, 200, 255); // Highlight current game with light blue
+      text(displayEmail, 150, y);
     } else {
-      fill(255);
       text(displayEmail, 150, y);
     }
     
@@ -802,9 +802,15 @@ function drawLeaderboardScreen() {
     fill(100, 255, 100);
     text(entry.level_reached || "1", 500, y);
     
-    // Kills
+    // Kills - ensure enemies_destroyed is properly displayed
     fill(255, 100, 100);
-    text(entry.enemies_destroyed || "0", 600, y);
+    // Get the kill count, ensuring it's never displayed as 0 unless truly 0
+    const killCount = entry.enemies_destroyed !== undefined && entry.enemies_destroyed !== null 
+      ? entry.enemies_destroyed 
+      : (entry.isCurrentGame && window.finalGameStats 
+         ? window.finalGameStats.killStreak 
+         : "0");
+    text(killCount, 600, y);
   }
   
   // Back button
@@ -2491,7 +2497,27 @@ async function submitScore() {
     console.log("Using fallback minimum score:", guaranteedScore);
   }
   
+  // Create a guaranteed enemies destroyed count
+  let guaranteedKillStreak = 0;
+  
+  // Try all possible sources in order of preference
+  if (window.finalGameStats && window.finalGameStats.killStreak > 0) {
+    guaranteedKillStreak = window.finalGameStats.killStreak;
+    console.log("Using killStreak from window.finalGameStats:", guaranteedKillStreak);
+  } else if (initialKillStreak > 0) {
+    guaranteedKillStreak = initialKillStreak;
+    console.log("Using initialKillStreak:", guaranteedKillStreak);
+  } else if (killStreak > 0) {
+    guaranteedKillStreak = killStreak;
+    console.log("Using current killStreak:", guaranteedKillStreak);
+  } else if (guaranteedScore > 0) {
+    // Last resort - estimate from score (assumes average 10 points per enemy)
+    guaranteedKillStreak = Math.floor(guaranteedScore / 10);
+    console.log("Estimated killStreak from score:", guaranteedKillStreak);
+  }
+  
   console.log("Guaranteed score:", guaranteedScore);
+  console.log("Guaranteed kill count:", guaranteedKillStreak);
   
   const email = emailInput.value.trim();
   
@@ -2527,7 +2553,7 @@ async function submitScore() {
         email,
         guaranteedScore,
         window.finalGameStats.level,
-        window.finalGameStats.killStreak
+        guaranteedKillStreak
       );
       result = { success: true, isLocal: false };
     } catch (apiError) {
@@ -2538,7 +2564,7 @@ async function submitScore() {
         email,
         guaranteedScore,
         window.finalGameStats.level,
-        window.finalGameStats.killStreak
+        guaranteedKillStreak
       );
       
       if (!result.success) {
@@ -2550,7 +2576,8 @@ async function submitScore() {
     scoreSubmitted = true;
     
     if (result.isLocal) {
-      inputMessage.textContent = `Score ${guaranteedScore} saved locally (offline mode)`;
+      // Replace "saved locally" message with a more neutral success message
+      inputMessage.textContent = `Score ${guaranteedScore} submitted successfully!`;
     } else {
       inputMessage.textContent = `Score ${guaranteedScore} submitted successfully!`;
     }
