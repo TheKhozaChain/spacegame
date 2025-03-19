@@ -330,6 +330,7 @@ function draw() {
             
             // Update combo
             killStreak++;
+            console.log("Enemy destroyed! killStreak increased to:", killStreak);
             comboMultiplier = min(floor(killStreak / 5) + 1, 5);
             comboTimer = 180; // 3 seconds at 60fps
             
@@ -345,6 +346,12 @@ function draw() {
             
             // Remove the enemy
             enemies.splice(j, 1);
+            
+            // Ensure killStreak is correctly updated in finalGameStats if game is already over
+            if (gameState === "gameOver" && window.finalGameStats) {
+              window.finalGameStats.killStreak = killStreak;
+              console.log("Updated finalGameStats.killStreak after enemy destroyed:", window.finalGameStats.killStreak);
+            }
           }
           
           // Remove the bullet
@@ -572,8 +579,20 @@ function drawGameOverScreen() {
   fill(255, 255, 255);
   textSize(32);
   
-  // Use the stored final stats if available
-  const displayKillStreak = window.finalGameStats ? window.finalGameStats.killStreak : killStreak;
+  // Add debug logging to track killStreak and finalGameStats
+  console.log("Drawing game over screen, current killStreak:", killStreak);
+  console.log("finalGameStats available:", window.finalGameStats ? "yes" : "no");
+  if (window.finalGameStats) {
+    console.log("finalGameStats killStreak:", window.finalGameStats.killStreak);
+  }
+  
+  // Use the stored final stats if available, with fallback to current killStreak
+  const displayKillStreak = window.finalGameStats && window.finalGameStats.killStreak > 0 
+                          ? window.finalGameStats.killStreak 
+                          : killStreak;
+  
+  // Make sure we log what is being displayed
+  console.log("displayKillStreak that will be shown:", displayKillStreak);
   
   // FIXED: Make sure we always have a valid finalScore for display and submission
   if (finalScore <= 0 && window.finalGameStats && window.finalGameStats.score > 0) {
@@ -592,6 +611,10 @@ function drawGameOverScreen() {
       };
     } else {
       window.finalGameStats.score = finalScore;
+      // Also ensure killStreak is set if it wasn't already
+      if (!window.finalGameStats.killStreak || window.finalGameStats.killStreak <= 0) {
+        window.finalGameStats.killStreak = killStreak;
+      }
     }
   }
   
@@ -903,6 +926,7 @@ function restartGame() {
   
   // Clear saved game stats
   window.finalGameStats = null;
+  console.log("Game restarted, stats reset. window.finalGameStats cleared");
   
   // Save the current Supabase client reference before resetting
   const currentSupabase = supabase;
@@ -921,6 +945,7 @@ function restartGame() {
   gameState = "playing";
   level = 1;
   killStreak = 0;
+  console.log("killStreak reset to 0");
   comboMultiplier = 1;
   comboTimer = 0;
   shieldActive = false;
