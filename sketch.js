@@ -124,6 +124,7 @@ function draw() {
       window.finalGameStats = finalGameStats;
       
       console.log("Game over! Final stats captured:", window.finalGameStats);
+      console.log("At game over, killStreak is:", killStreak, "and will be stored in finalGameStats");
       
       // IMPORTANT: We no longer stop the game loop here to allow interaction
       // Instead, we'll just return to prevent further game updates
@@ -328,9 +329,16 @@ function draw() {
             let pointsScored = pointValue * comboMultiplier;
             score += pointsScored;
             
-            // Update combo
+            // Update combo - CRITICAL for tracking enemies destroyed
             killStreak++;
             console.log("Enemy destroyed! killStreak increased to:", killStreak);
+            
+            // Update finalGameStats immediately if it exists, so we don't lose the count
+            if (window.finalGameStats) {
+              window.finalGameStats.killStreak = killStreak;
+              console.log("Updated window.finalGameStats.killStreak to:", killStreak);
+            }
+            
             comboMultiplier = min(floor(killStreak / 5) + 1, 5);
             comboTimer = 180; // 3 seconds at 60fps
             
@@ -586,13 +594,28 @@ function drawGameOverScreen() {
     console.log("finalGameStats killStreak:", window.finalGameStats.killStreak);
   }
   
-  // Use the stored final stats if available, with fallback to current killStreak
-  const displayKillStreak = window.finalGameStats && window.finalGameStats.killStreak > 0 
-                          ? window.finalGameStats.killStreak 
-                          : killStreak;
+  // Create a more robust way to get the kill streak value
+  let displayKillStreak = 0;
+  
+  // First try window.finalGameStats if available
+  if (window.finalGameStats && typeof window.finalGameStats.killStreak === 'number' && window.finalGameStats.killStreak > 0) {
+    displayKillStreak = window.finalGameStats.killStreak;
+    console.log("Using window.finalGameStats.killStreak:", displayKillStreak);
+  } 
+  // Fallback to current killStreak if it has a value
+  else if (typeof killStreak === 'number' && killStreak > 0) {
+    displayKillStreak = killStreak;
+    console.log("Using current killStreak:", displayKillStreak);
+  } 
+  // Last resort - try to calculate from score (approximately)
+  else if (finalScore > 0) {
+    // Estimate kill count based on score (assuming average 10 points per enemy)
+    displayKillStreak = Math.floor(finalScore / 10);
+    console.log("Estimated killStreak from score:", displayKillStreak);
+  }
   
   // Make sure we log what is being displayed
-  console.log("displayKillStreak that will be shown:", displayKillStreak);
+  console.log("Final displayKillStreak that will be shown:", displayKillStreak);
   
   // FIXED: Make sure we always have a valid finalScore for display and submission
   if (finalScore <= 0 && window.finalGameStats && window.finalGameStats.score > 0) {
@@ -944,8 +967,11 @@ function restartGame() {
   escapedEnemies = 0;
   gameState = "playing";
   level = 1;
+  
+  // Explicitly reset the kill streak to 0
   killStreak = 0;
   console.log("killStreak reset to 0");
+  
   comboMultiplier = 1;
   comboTimer = 0;
   shieldActive = false;
@@ -2151,11 +2177,41 @@ async function fetchLeaderboard() {
     // CORS FIX: Try to fetch from API with fallback to localStorage
     console.log("Fetching leaderboard data...");
     
+    // Add current game score to leaderboard data temporarily if not submitted
+    // Do this first to ensure we always have at least one entry
+    if (!scoreSubmitted && finalScore > 0) {
+      // If we have saved game stats, use those
+      const currentGameScore = window.finalGameStats ? window.finalGameStats.score : finalScore;
+      const currentGameLevel = window.finalGameStats ? window.finalGameStats.level : level;
+      const currentGameKillStreak = window.finalGameStats ? window.finalGameStats.killStreak : killStreak;
+      
+      // Create a temporary entry for the current game
+      const tempEntry = {
+        player_email: "Current Game",
+        score: currentGameScore,
+        level_reached: currentGameLevel,
+        enemies_destroyed: currentGameKillStreak,
+        isCurrentGame: true,  // Flag to identify this as the current game
+        is_local: true        // Mark as local entry
+      };
+      
+      // Initialize leaderboardData with the current game's score
+      leaderboardData = [tempEntry];
+      console.log("Added current game score to leaderboard", tempEntry);
+    } else {
+      // Reset leaderboard data
+      leaderboardData = [];
+    }
+    
     // Get API leaderboard data
     let apiData = [];
     try {
-      apiData = await window.supabaseApi.getLeaderboard();
-      console.log("API leaderboard data:", apiData.length, "entries");
+      if (window.supabaseApi && typeof window.supabaseApi.getLeaderboard === 'function') {
+        apiData = await window.supabaseApi.getLeaderboard();
+        console.log("API leaderboard data:", apiData.length, "entries");
+      } else {
+        console.warn("window.supabaseApi not available or missing getLeaderboard method");
+      }
     } catch (apiError) {
       console.error("Error fetching API leaderboard:", apiError);
     }
@@ -2188,17 +2244,39 @@ async function fetchLeaderboard() {
     // Sort by score (highest first)
     mergedData.sort((a, b) => b.score - a.score);
     
-    // Use merged data
-    leaderboardData = mergedData;
+    // Add merged data to the leaderboardData (which might already contain current game)
+    if (leaderboardData.length > 0) {
+      // Filter out any existing entries with "Current Game" email
+      const filteredMerged = mergedData.filter(entry => entry.player_email !== "Current Game");
+      leaderboardData = [...leaderboardData, ...filteredMerged];
+    } else {
+      leaderboardData = mergedData;
+    }
     
-    console.log("Merged leaderboard data:", leaderboardData.length, "entries");
+    console.log("Final leaderboard data:", leaderboardData.length, "entries");
     
+    // Only set error if we literally have no data at all
     if (leaderboardData.length === 0) {
       leaderboardError = "No leaderboard data available";
     }
   } catch (error) {
     console.error("Error fetching leaderboard:", error);
     leaderboardError = error.message || "Failed to fetch leaderboard";
+    
+    // Even if there's an error, still show the current game if available
+    if (!scoreSubmitted && finalScore > 0 && leaderboardData.length === 0) {
+      const tempEntry = {
+        player_email: "Current Game",
+        score: finalScore,
+        level_reached: level,
+        enemies_destroyed: killStreak,
+        isCurrentGame: true,
+        is_local: true
+      };
+      leaderboardData = [tempEntry];
+      // Clear the error since we have at least one entry
+      leaderboardError = null;
+    }
   } finally {
     isLoadingLeaderboard = false;
   }
