@@ -103,13 +103,15 @@
       // Fetch leaderboard data
       async getLeaderboard() {
         try {
-          console.log("Fetching leaderboard data...");
+          console.log("Fetching leaderboard data from Supabase...");
           
-          // Use a more reliable approach with better error handling
-          const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?select=*&order=score.desc&limit=100`, {
+          // Use a more reliable approach with better error handling and cache busting
+          const cacheBuster = new Date().getTime();
+          const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?select=*&order=score.desc&limit=100&cacheBuster=${cacheBuster}`, {
             method: 'GET',
             headers: this.getHeaders(),
-            mode: 'cors' // Explicitly set CORS mode
+            mode: 'cors', // Explicitly set CORS mode
+            cache: 'no-cache' // Prevent caching to ensure fresh data
           });
           
           if (!response.ok) {
@@ -120,9 +122,40 @@
           
           const data = await response.json();
           console.log("Leaderboard data fetched successfully:", data.length, "entries");
+          
+          // Store the API data in localStorage as a backup
+          if (data && data.length > 0) {
+            try {
+              // Mark these as API entries
+              const markedData = data.map(entry => ({
+                ...entry,
+                is_api: true,
+                last_fetched: new Date().toISOString()
+              }));
+              
+              localStorage.setItem('spaceGameApiLeaderboard', JSON.stringify(markedData));
+              console.log("API leaderboard data cached to localStorage");
+            } catch (e) {
+              console.warn("Failed to cache API data to localStorage:", e);
+            }
+          }
+          
           return data;
         } catch (error) {
           console.error("Error fetching leaderboard:", error);
+          
+          // Try to use cached API data from localStorage as fallback
+          try {
+            const cachedApiData = localStorage.getItem('spaceGameApiLeaderboard');
+            if (cachedApiData) {
+              const parsedData = JSON.parse(cachedApiData);
+              console.log("Using cached API data from localStorage:", parsedData.length, "entries");
+              return parsedData;
+            }
+          } catch (e) {
+            console.error("Error reading cached API data:", e);
+          }
+          
           // Return empty array instead of throwing to prevent UI errors
           return [];
         }
@@ -138,7 +171,7 @@
             enemies_destroyed: enemiesDestroyed
           };
           
-          console.log("Submitting score:", payload);
+          console.log("Submitting score to Supabase:", payload);
           
           // Use a more reliable approach with better error handling
           const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard`, {
@@ -165,18 +198,24 @@
             throw new Error(errorMessage);
           }
           
-          console.log("Score submitted successfully");
+          console.log("Score submitted successfully to Supabase");
+          
+          // Also save this successful submission to localStorage as a backup
+          this.fallbackToLocalStorage(email, score, level, enemiesDestroyed, true);
+          
           return { success: true };
         } catch (error) {
-          console.error("Error submitting score:", error);
+          console.error("Error submitting score to Supabase:", error);
           throw error;
         }
       },
       
-      // Fallback to localStorage if API fails
-      fallbackToLocalStorage(email, score, level, enemiesDestroyed) {
+      // Fallback to localStorage if API fails, or store as backup if successful API submission
+      fallbackToLocalStorage(email, score, level, enemiesDestroyed, wasApiSuccessful = false) {
         try {
-          console.log("Falling back to localStorage for score submission");
+          console.log(wasApiSuccessful ? 
+            "Backing up successful API submission to localStorage" : 
+            "Falling back to localStorage for score submission");
           
           // Get current leaderboard from localStorage
           let leaderboard = [];
@@ -197,7 +236,8 @@
             level_reached: level,
             enemies_destroyed: enemiesDestroyed,
             created_at: new Date().toISOString(),
-            is_local: true // Mark as local entry
+            is_local: !wasApiSuccessful, // Mark as local only if API failed
+            is_api: wasApiSuccessful     // Mark as API if it was successful
           };
           
           // Check if this email already exists
@@ -224,7 +264,7 @@
           // Save back to localStorage
           localStorage.setItem('spaceGameLeaderboard', JSON.stringify(leaderboard));
           
-          return { success: true, isLocal: true };
+          return { success: true, isLocal: !wasApiSuccessful };
         } catch (error) {
           console.error("Error with localStorage fallback:", error);
           return { success: false, error: error.message };
@@ -236,17 +276,64 @@
     window.addEventListener('load', async function() {
       try {
         console.log("Testing Supabase API connection...");
+        const testStart = Date.now();
+        
+        // First, try to fetch the leaderboard data
         const data = await window.supabaseApi.getLeaderboard();
+        
+        const testEnd = Date.now();
+        const testTime = testEnd - testStart;
+        
         if (data && data.length > 0) {
-          console.log("Supabase API connection successful");
-          document.getElementById('version-indicator').textContent += " (API OK)";
+          console.log(`Supabase API connection successful (${testTime}ms), ${data.length} entries found`);
+          document.getElementById('version-indicator').textContent += ` (API OK: ${data.length} entries)`;
         } else {
-          console.warn("Supabase API returned empty data");
-          document.getElementById('version-indicator').textContent += " (No Data)";
+          console.warn(`Supabase API returned empty data after ${testTime}ms`);
+          
+          // Try to make a simple fetch without full processing to test pure connectivity
+          const simpleTestStart = Date.now();
+          try {
+            const headers = window.supabaseApi.getHeaders();
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?limit=1`, {
+              method: 'GET',
+              headers,
+              mode: 'cors',
+              cache: 'no-cache'
+            });
+            
+            const simpleTestEnd = Date.now();
+            const simpleTestTime = simpleTestEnd - simpleTestStart;
+            
+            if (response.ok) {
+              const simpleData = await response.json();
+              console.log(`Simple API test successful (${simpleTestTime}ms), connection works but no data`);
+              document.getElementById('version-indicator').textContent += " (API OK: No Data)";
+            } else {
+              console.warn(`Simple API test failed after ${simpleTestTime}ms: ${response.status}`);
+              document.getElementById('version-indicator').textContent += ` (API Error: ${response.status})`;
+            }
+          } catch (simpleError) {
+            console.error("Simple API test failed:", simpleError);
+            document.getElementById('version-indicator').textContent += " (API Connection Failed)";
+          }
         }
       } catch (error) {
         console.error("Supabase API connection failed:", error);
         document.getElementById('version-indicator').textContent += " (API Error)";
+        
+        // Attempt to load any cached API data to verify if we have backup data
+        try {
+          const cachedApiData = localStorage.getItem('spaceGameApiLeaderboard');
+          if (cachedApiData) {
+            const parsedData = JSON.parse(cachedApiData);
+            if (parsedData && parsedData.length > 0) {
+              console.log("Found cached API data:", parsedData.length, "entries");
+              document.getElementById('version-indicator').textContent += ` (Using ${parsedData.length} cached entries)`;
+            }
+          }
+        } catch (e) {
+          console.error("Error checking cached API data:", e);
+        }
       }
     });
   </script>

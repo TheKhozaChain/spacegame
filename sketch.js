@@ -2177,8 +2177,8 @@ async function fetchLeaderboard() {
     // CORS FIX: Try to fetch from API with fallback to localStorage
     console.log("Fetching leaderboard data...");
     
-    // Add current game score to leaderboard data temporarily if not submitted
-    // Do this first to ensure we always have at least one entry
+    // Store the current game score temporarily for display if not yet submitted
+    let currentGameEntry = null;
     if (!scoreSubmitted && finalScore > 0) {
       // If we have saved game stats, use those
       const currentGameScore = window.finalGameStats ? window.finalGameStats.score : finalScore;
@@ -2186,7 +2186,7 @@ async function fetchLeaderboard() {
       const currentGameKillStreak = window.finalGameStats ? window.finalGameStats.killStreak : killStreak;
       
       // Create a temporary entry for the current game
-      const tempEntry = {
+      currentGameEntry = {
         player_email: "Current Game",
         score: currentGameScore,
         level_reached: currentGameLevel,
@@ -2195,15 +2195,13 @@ async function fetchLeaderboard() {
         is_local: true        // Mark as local entry
       };
       
-      // Initialize leaderboardData with the current game's score
-      leaderboardData = [tempEntry];
-      console.log("Added current game score to leaderboard", tempEntry);
-    } else {
-      // Reset leaderboard data
-      leaderboardData = [];
+      console.log("Created current game entry for display:", currentGameEntry);
     }
     
-    // Get API leaderboard data
+    // Reset leaderboard data
+    leaderboardData = [];
+    
+    // Get API leaderboard data - this will always fetch the latest scores from the server
     let apiData = [];
     try {
       if (window.supabaseApi && typeof window.supabaseApi.getLeaderboard === 'function') {
@@ -2216,7 +2214,28 @@ async function fetchLeaderboard() {
       console.error("Error fetching API leaderboard:", apiError);
     }
     
-    // Get localStorage data
+    // If we got API data, use it as our primary source
+    if (apiData && apiData.length > 0) {
+      console.log("Using API data as primary source");
+      leaderboardData = [...apiData];
+    } else {
+      // If API failed, try to get stored leaderboard data from localStorage
+      try {
+        console.log("API data empty or failed, trying localStorage");
+        const storedApiData = localStorage.getItem('spaceGameApiLeaderboard');
+        if (storedApiData) {
+          const parsedApiData = JSON.parse(storedApiData);
+          if (parsedApiData && parsedApiData.length > 0) {
+            console.log("Using cached API data from localStorage:", parsedApiData.length, "entries");
+            leaderboardData = [...parsedApiData];
+          }
+        }
+      } catch (localApiError) {
+        console.error("Error reading cached API data:", localApiError);
+      }
+    }
+    
+    // Get regular localStorage data as a fallback or supplement
     let localData = [];
     try {
       const storedData = localStorage.getItem('spaceGameLeaderboard');
@@ -2228,29 +2247,38 @@ async function fetchLeaderboard() {
       console.error("Error fetching local leaderboard:", localError);
     }
     
-    // Merge data, prioritizing API data for same email
-    const mergedData = [...apiData];
-    
-    // Add local entries that don't exist in API data
-    for (const localEntry of localData) {
-      // Skip if this email already exists in API data
-      if (!apiData.some(entry => entry.player_email === localEntry.player_email)) {
-        // Mark as local entry
-        localEntry.is_local = true;
-        mergedData.push(localEntry);
+    // If we still don't have any data from API or API cache, use local data
+    if (leaderboardData.length === 0 && localData.length > 0) {
+      console.log("No API data available, using local data as primary source");
+      leaderboardData = [...localData];
+    }
+    // Otherwise, supplement API data with any local entries not in the API data
+    else if (localData.length > 0) {
+      console.log("Supplementing API data with local entries");
+      
+      // Extract emails from API data for quick lookup
+      const apiEmails = new Set(leaderboardData.map(entry => entry.player_email));
+      
+      // Add local entries that don't exist in API data
+      for (const localEntry of localData) {
+        // Only add entries that are marked as API successful submissions or
+        // entries that don't exist in the API data
+        if ((localEntry.is_api || !apiEmails.has(localEntry.player_email)) && 
+            localEntry.player_email !== "Current Game") {
+          // Mark as local entry if not already marked
+          if (!localEntry.is_local) localEntry.is_local = true;
+          leaderboardData.push(localEntry);
+        }
       }
     }
     
     // Sort by score (highest first)
-    mergedData.sort((a, b) => b.score - a.score);
+    leaderboardData.sort((a, b) => b.score - a.score);
     
-    // Add merged data to the leaderboardData (which might already contain current game)
-    if (leaderboardData.length > 0) {
-      // Filter out any existing entries with "Current Game" email
-      const filteredMerged = mergedData.filter(entry => entry.player_email !== "Current Game");
-      leaderboardData = [...leaderboardData, ...filteredMerged];
-    } else {
-      leaderboardData = mergedData;
+    // If we have a current game entry, add it to the leaderboard
+    if (currentGameEntry) {
+      // Insert at beginning before sorting by score
+      leaderboardData.unshift(currentGameEntry);
     }
     
     console.log("Final leaderboard data:", leaderboardData.length, "entries");
