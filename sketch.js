@@ -948,6 +948,14 @@ function mousePressed() {
 }
 
 function restartGame() {
+  // If we've just submitted a score, don't reset stats immediately
+  if (scoreSubmitted) {
+    console.log("Score was submitted - preserving stats");
+    scoreSubmitted = false; // Reset for next game
+    gameState = "playing";
+    return;
+  }
+  
   // Save high score
   if (finalScore > highScore) {
     highScore = finalScore;
@@ -2197,8 +2205,7 @@ async function fetchLeaderboard() {
         score: currentGameScore,
         level_reached: currentGameLevel,
         enemies_destroyed: currentGameKillStreak,
-        isCurrentGame: true,  // Flag to identify this as the current game
-        is_local: true        // Mark as local entry
+        isCurrentGame: true  // Flag to identify this as the current game
       };
       
       console.log("Created current game entry for display:", currentGameEntry);
@@ -2461,6 +2468,12 @@ function hideEmailForm() {
   submitButton.disabled = false;
   
   // We no longer need to restart the loop since we're not stopping it
+  
+  // Don't restart the game if the score was submitted successfully
+  // This prevents the score from being reset to 0
+  if (!scoreSubmitted) {
+    console.log("Email form hidden without score submission, game continues");
+  }
 }
 
 async function submitScore() {
@@ -2592,7 +2605,34 @@ async function submitScore() {
       viewLeaderboardButton.textContent = 'View Leaderboard';
       viewLeaderboardButton.onclick = function() {
         hideEmailForm();
+        // Save the current score and game state before switching to leaderboard
+        const currentScore = score;
+        const currentFinalScore = finalScore;
+        const currentGameState = gameState;
+        const currentLives = lives;
+        
+        // Switch to leaderboard view
         fetchLeaderboard();
+        gameState = "leaderboard";
+        
+        // Preserve the existing score and game state
+        score = currentScore;
+        finalScore = currentFinalScore;
+        lives = currentLives;
+        
+        // Create a button to return to game over screen
+        const backToGameButton = document.createElement('button');
+        backToGameButton.id = 'back-to-game-button';
+        backToGameButton.textContent = 'Back to Game';
+        backToGameButton.style.position = 'absolute';
+        backToGameButton.style.top = '10px';
+        backToGameButton.style.left = '10px';
+        backToGameButton.style.zIndex = '1000';
+        backToGameButton.onclick = function() {
+          document.body.removeChild(backToGameButton);
+          gameState = currentGameState;
+        };
+        document.body.appendChild(backToGameButton);
       };
       
       // Insert after share button
