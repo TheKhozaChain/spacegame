@@ -3531,4 +3531,3 @@ function drawGameControls() {
       fill(255, 255, 255, screenFlash * 100);
       rect(0, 0, width, height);
     }
-}
