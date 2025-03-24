@@ -3439,75 +3439,76 @@ function drawPortalParticles() {
 // Function to draw game controls instructions on the left side
 function drawGameControls() {
   push();
-  // Position on the left side of the screen
-  translate(20, HEIGHT - 160);
+  // Position on the left side of the screen below powerup timers
+  // (powerup timers end around y=240 when all active)
+  translate(10, 280);
   
   // Semi-transparent background for better readability
-  fill(0, 0, 20, 180);
-  stroke(100, 150, 255, 100);
+  fill(0, 0, 20, 150);
+  stroke(100, 150, 255, 80);
   strokeWeight(1);
-  rect(0, 0, 130, 140, 10);
+  rect(0, 0, 100, 110, 8); // Smaller panel
   
   // Title
   fill(255);
   noStroke();
-  textSize(14);
+  textSize(11);
   textAlign(CENTER);
-  text("CONTROLS", 65, 20);
+  text("CONTROLS", 50, 15);
   
   // Arrow keys for movement
   textAlign(LEFT);
-  textSize(12);
-  text("Movement:", 10, 45);
+  textSize(10);
+  text("Move:", 10, 35);
   
-  // Draw arrow keys
+  // Draw arrow keys - smaller size
   strokeWeight(1);
   stroke(200, 200, 200);
   fill(40, 40, 60);
   
   // Up arrow
-  rect(45, 55, 24, 24, 3);
+  rect(35, 40, 18, 18, 2);
   fill(200, 200, 200);
   noStroke();
-  triangle(57, 60, 52, 70, 62, 70);
+  triangle(44, 44, 40, 52, 48, 52);
   
   // Left arrow
   fill(40, 40, 60);
   stroke(200, 200, 200);
-  rect(20, 80, 24, 24, 3);
+  rect(15, 60, 18, 18, 2);
   fill(200, 200, 200);
   noStroke();
-  triangle(25, 92, 35, 87, 35, 97);
+  triangle(19, 69, 27, 65, 27, 73);
   
   // Down arrow
   fill(40, 40, 60);
   stroke(200, 200, 200);
-  rect(45, 80, 24, 24, 3);
+  rect(35, 60, 18, 18, 2);
   fill(200, 200, 200);
   noStroke();
-  triangle(57, 95, 52, 85, 62, 85);
+  triangle(44, 72, 40, 64, 48, 64);
   
   // Right arrow
   fill(40, 40, 60);
   stroke(200, 200, 200);
-  rect(70, 80, 24, 24, 3);
+  rect(55, 60, 18, 18, 2);
   fill(200, 200, 200);
   noStroke();
-  triangle(79, 92, 69, 87, 69, 97);
+  triangle(61, 69, 53, 65, 53, 73);
   
   // Spacebar for shooting
   textAlign(LEFT);
   fill(255);
-  text("Shoot:", 10, 120);
+  text("Shoot:", 10, 95);
   
   fill(40, 40, 60);
   stroke(200, 200, 200);
-  rect(50, 110, 70, 20, 3);
+  rect(45, 85, 45, 16, 2);
   fill(200, 200, 200);
   noStroke();
-  textSize(10);
+  textSize(8);
   textAlign(CENTER);
-  text("SPACE", 85, 123);
+  text("SPACE", 67, 96);
   
   pop();
 }
