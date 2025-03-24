@@ -793,8 +793,6 @@ function draw() {
       text(`VIBE x${vibeScoreMultiplier} (${Math.ceil(vibeScoreTime / 60)}s)`, WIDTH - 150, 60);
     }
     
-    // Draw game controls instructions if in playing state
-    drawGameControls();
     
     // Draw screen flash effect for Vibeverse power-up
     if (screenFlash > 0) {
