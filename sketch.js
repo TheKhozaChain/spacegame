@@ -727,33 +727,24 @@ function draw() {
     // Display power-up status
     let statusY = 150;
     
-    // Always display shield status
-    fill(255);
+    // Only display shield status if active
     if (shieldActive) {
       fill(50, 150, 255);
       text(`Shield: ${Math.ceil(shieldTime / 60)}s`, 10, statusY);
-    } else {
-      text(`Shield: inactive`, 10, statusY);
+      statusY += 30;
     }
-    statusY += 30;
     
-    // Always display rapid fire status
-    fill(255);
+    // Only display rapid fire status if active
     if (rapidFireActive) {
       fill(255, 150, 0);
       text(`Rapid Fire: ${Math.ceil(rapidFireTime / 60)}s`, 10, statusY);
-    } else {
-      text(`Rapid Fire: inactive`, 10, statusY);
+      statusY += 30;
     }
-    statusY += 30;
     
-    // Always display triple shot status
-    fill(255);
+    // Only display triple shot status if active
     if (tripleShot) {
       fill(200, 50, 255);
       text(`Triple Shot: ${Math.ceil(tripleShotTime / 60)}s`, 10, statusY);
-    } else {
-      text(`Triple Shot: inactive`, 10, statusY);
     }
     
     // Reset fill color
@@ -3476,40 +3467,63 @@ function drawGameControls() {
   textSize(10);
   text("Move:", 10, 35);
   
-  // Draw arrow keys - smaller size
+  // Draw arrow keys - smaller size and properly aligned
   strokeWeight(1);
   stroke(200, 200, 200, 100); // Made strokes semi-transparent
-  fill(40, 40, 60, 100);  // Made fills semi-transparent
+  
+  // Create a more organized d-pad layout
+  // Center position for the d-pad
+  let dpadCenterX = 50;
+  let dpadCenterY = 55;
+  let buttonSize = 18;
+  let buttonSpacing = buttonSize + 2;
   
   // Up arrow
-  rect(35, 40, 18, 18, 2);
-  fill(200, 200, 200, 180); // Made arrows semi-transparent but more visible
+  fill(40, 40, 60, 100);
+  rect(dpadCenterX - buttonSize/2, dpadCenterY - buttonSpacing, buttonSize, buttonSize, 2);
+  fill(200, 200, 200, 180);
   noStroke();
-  triangle(44, 44, 40, 52, 48, 52);
+  triangle(
+    dpadCenterX, dpadCenterY - buttonSpacing + 4,
+    dpadCenterX - 4, dpadCenterY - buttonSpacing + buttonSize - 4,
+    dpadCenterX + 4, dpadCenterY - buttonSpacing + buttonSize - 4
+  );
   
   // Left arrow
   fill(40, 40, 60, 100);
   stroke(200, 200, 200, 100);
-  rect(15, 60, 18, 18, 2);
+  rect(dpadCenterX - buttonSpacing, dpadCenterY, buttonSize, buttonSize, 2);
   fill(200, 200, 200, 180);
   noStroke();
-  triangle(19, 69, 27, 65, 27, 73);
+  triangle(
+    dpadCenterX - buttonSpacing + 4, dpadCenterY + buttonSize/2,
+    dpadCenterX - buttonSpacing + buttonSize - 4, dpadCenterY + 4,
+    dpadCenterX - buttonSpacing + buttonSize - 4, dpadCenterY + buttonSize - 4
+  );
   
   // Down arrow
   fill(40, 40, 60, 100);
   stroke(200, 200, 200, 100);
-  rect(35, 60, 18, 18, 2);
+  rect(dpadCenterX - buttonSize/2, dpadCenterY + buttonSpacing - buttonSize, buttonSize, buttonSize, 2);
   fill(200, 200, 200, 180);
   noStroke();
-  triangle(44, 72, 40, 64, 48, 64);
+  triangle(
+    dpadCenterX, dpadCenterY + buttonSpacing - 4,
+    dpadCenterX - 4, dpadCenterY + buttonSpacing - buttonSize + 4,
+    dpadCenterX + 4, dpadCenterY + buttonSpacing - buttonSize + 4
+  );
   
   // Right arrow
   fill(40, 40, 60, 100);
   stroke(200, 200, 200, 100);
-  rect(55, 60, 18, 18, 2);
+  rect(dpadCenterX + buttonSpacing - buttonSize, dpadCenterY, buttonSize, buttonSize, 2);
   fill(200, 200, 200, 180);
   noStroke();
-  triangle(61, 69, 53, 65, 53, 73);
+  triangle(
+    dpadCenterX + buttonSpacing - 4, dpadCenterY + buttonSize/2,
+    dpadCenterX + buttonSpacing - buttonSize + 4, dpadCenterY + 4,
+    dpadCenterX + buttonSpacing - buttonSize + 4, dpadCenterY + buttonSize - 4
+  );
   
   // Spacebar for shooting
   textAlign(LEFT);
@@ -3527,23 +3541,3 @@ function drawGameControls() {
   
   pop();
 }
-
-// In the draw function, add a call to drawGameControls() after everything else is drawn
-// Add right before the screen flash effect, around line 613
-
-    // Show Vibeverse multiplier if active
-    if (vibeScoreMultiplier > 1 && vibeScoreTime > 0) {
-      textSize(24);
-      fill(0, 255, 255);
-      text(`VIBE x${vibeScoreMultiplier} (${Math.ceil(vibeScoreTime / 60)}s)`, WIDTH - 150, 60);
-    }
-    
-    // Draw game controls instructions if in playing state
-    drawGameControls();
-    
-    // Draw screen flash effect for Vibeverse power-up
-    if (screenFlash > 0) {
-      noStroke();
-      fill(255, 255, 255, screenFlash * 100);
-      rect(0, 0, width, height);
-    }
