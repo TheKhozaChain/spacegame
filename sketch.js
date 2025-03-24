@@ -3443,14 +3443,14 @@ function drawGameControls() {
   // (powerup timers end around y=240 when all active)
   translate(10, 280);
   
-  // Semi-transparent background for better readability
-  fill(0, 0, 20, 150);
-  stroke(100, 150, 255, 80);
+  // Extremely transparent background for better readability while being minimally visible
+  fill(0, 0, 20, 50);  // Changed from 150 to 50 for much higher transparency
+  stroke(100, 150, 255, 30); // Changed from 80 to 30 for more transparency
   strokeWeight(1);
   rect(0, 0, 100, 110, 8); // Smaller panel
   
   // Title
-  fill(255);
+  fill(255, 255, 255, 180); // Made text semi-transparent too
   noStroke();
   textSize(11);
   textAlign(CENTER);
@@ -3463,48 +3463,48 @@ function drawGameControls() {
   
   // Draw arrow keys - smaller size
   strokeWeight(1);
-  stroke(200, 200, 200);
-  fill(40, 40, 60);
+  stroke(200, 200, 200, 100); // Made strokes semi-transparent
+  fill(40, 40, 60, 100);  // Made fills semi-transparent
   
   // Up arrow
   rect(35, 40, 18, 18, 2);
-  fill(200, 200, 200);
+  fill(200, 200, 200, 180); // Made arrows semi-transparent but more visible
   noStroke();
   triangle(44, 44, 40, 52, 48, 52);
   
   // Left arrow
-  fill(40, 40, 60);
-  stroke(200, 200, 200);
+  fill(40, 40, 60, 100);
+  stroke(200, 200, 200, 100);
   rect(15, 60, 18, 18, 2);
-  fill(200, 200, 200);
+  fill(200, 200, 200, 180);
   noStroke();
   triangle(19, 69, 27, 65, 27, 73);
   
   // Down arrow
-  fill(40, 40, 60);
-  stroke(200, 200, 200);
+  fill(40, 40, 60, 100);
+  stroke(200, 200, 200, 100);
   rect(35, 60, 18, 18, 2);
-  fill(200, 200, 200);
+  fill(200, 200, 200, 180);
   noStroke();
   triangle(44, 72, 40, 64, 48, 64);
   
   // Right arrow
-  fill(40, 40, 60);
-  stroke(200, 200, 200);
+  fill(40, 40, 60, 100);
+  stroke(200, 200, 200, 100);
   rect(55, 60, 18, 18, 2);
-  fill(200, 200, 200);
+  fill(200, 200, 200, 180);
   noStroke();
   triangle(61, 69, 53, 65, 53, 73);
   
   // Spacebar for shooting
   textAlign(LEFT);
-  fill(255);
+  fill(255, 255, 255, 180);
   text("Shoot:", 10, 95);
   
-  fill(40, 40, 60);
-  stroke(200, 200, 200);
+  fill(40, 40, 60, 100);
+  stroke(200, 200, 200, 100);
   rect(45, 85, 45, 16, 2);
-  fill(200, 200, 200);
+  fill(200, 200, 200, 180);
   noStroke();
   textSize(8);
   textAlign(CENTER);
