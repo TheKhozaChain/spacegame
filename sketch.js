@@ -229,6 +229,35 @@ function setup() {
     // Welcome message is handled in the HTML
     console.log("Player entered from portal:", window.portalParams);
   }
+  
+  // Get DOM elements for score submission form
+  emailInput = document.getElementById('player-email');
+  submitButton = document.getElementById('submit-score');
+  cancelButton = document.getElementById('cancel-submit');
+  shareButton = document.getElementById('share-button');
+  inputMessage = document.getElementById('input-message');
+  
+  // Add event listeners
+  if (submitButton) {
+    submitButton.addEventListener('click', submitScore);
+    console.log("Added event listener to submit button");
+  } else {
+    console.warn("Submit button element not found");
+  }
+  
+  if (cancelButton) {
+    cancelButton.addEventListener('click', hideEmailForm);
+    console.log("Added event listener to cancel button");
+  } else {
+    console.warn("Cancel button element not found");
+  }
+  
+  if (shareButton) {
+    shareButton.addEventListener('click', shareToX);
+    console.log("Added event listener to share button");
+  } else {
+    console.warn("Share button element not found");
+  }
 }
 
 // Function to update the dynamic soundtrack based on gameplay intensity
@@ -2870,21 +2899,72 @@ function showEmailForm() {
   if (existingAfterSubmitButton) {
     existingAfterSubmitButton.remove();
   }
+  
+  // Update the DOM - make sure elements exist
+  if (!emailInput) emailInput = document.getElementById('player-email');
+  if (!submitButton) submitButton = document.getElementById('submit-score');
+  if (!cancelButton) cancelButton = document.getElementById('cancel-submit');
+  if (!shareButton) shareButton = document.getElementById('share-button');
+  if (!inputMessage) inputMessage = document.getElementById('input-message');
+  
+  // Show the email input form
+  const emailFormContainer = document.getElementById('email-input');
+  
+  if (emailFormContainer) {
+    // Reset form state
+    if (emailInput) emailInput.value = '';
+    if (inputMessage) {
+      inputMessage.textContent = `Submit your score of ${finalScore}`;
+      inputMessage.className = '';
+    }
+    if (submitButton) submitButton.disabled = false;
+    if (shareButton) shareButton.style.display = 'none';
+    
+    // Show the form
+    emailFormContainer.style.display = 'block';
+    console.log("Email form shown");
+    
+    // Add event listeners if they don't exist
+    if (submitButton && !submitButton.hasEventListener) {
+      submitButton.addEventListener('click', submitScore);
+      submitButton.hasEventListener = true;
+      console.log("Added event listener to submit button");
+    }
+    
+    if (cancelButton && !cancelButton.hasEventListener) {
+      cancelButton.addEventListener('click', hideEmailForm);
+      cancelButton.hasEventListener = true;
+      console.log("Added event listener to cancel button");
+    }
+    
+    if (shareButton && !shareButton.hasEventListener) {
+      shareButton.addEventListener('click', shareToX);
+      shareButton.hasEventListener = true;
+    }
+  } else {
+    console.error("Email form element not found!");
+  }
 }
 
 function hideEmailForm() {
-  const formElement = document.getElementById('email-input');
-  formElement.style.display = 'none';
+  const emailFormElement = document.getElementById('email-input');
   
-  // Re-enable the submit button
-  submitButton.disabled = false;
-  
-  // We no longer need to restart the loop since we're not stopping it
-  
-  // Don't restart the game if the score was submitted successfully
-  // This prevents the score from being reset to 0
-  if (!scoreSubmitted) {
-    console.log("Email form hidden without score submission, game continues");
+  if (emailFormElement) {
+    console.log("Hiding email form");
+    emailFormElement.style.display = 'none';
+    
+    // Re-enable the submit button if it exists
+    if (submitButton) {
+      submitButton.disabled = false;
+    }
+    
+    // Don't restart the game if the score was submitted successfully
+    // This prevents the score from being reset to 0
+    if (!scoreSubmitted) {
+      console.log("Email form hidden without score submission, game continues");
+    }
+  } else {
+    console.error("Email form element not found!");
   }
 }
 
