@@ -727,22 +727,37 @@ function draw() {
     // Display power-up status
     let statusY = 150;
     
-    // Display shield status if active
+    // Always display shield status
+    fill(255);
     if (shieldActive) {
+      fill(50, 150, 255);
       text(`Shield: ${Math.ceil(shieldTime / 60)}s`, 10, statusY);
-      statusY += 30;
+    } else {
+      text(`Shield: inactive`, 10, statusY);
     }
+    statusY += 30;
     
-    // Display rapid fire status if active
+    // Always display rapid fire status
+    fill(255);
     if (rapidFireActive) {
+      fill(255, 150, 0);
       text(`Rapid Fire: ${Math.ceil(rapidFireTime / 60)}s`, 10, statusY);
-      statusY += 30;
+    } else {
+      text(`Rapid Fire: inactive`, 10, statusY);
+    }
+    statusY += 30;
+    
+    // Always display triple shot status
+    fill(255);
+    if (tripleShot) {
+      fill(200, 50, 255);
+      text(`Triple Shot: ${Math.ceil(tripleShotTime / 60)}s`, 10, statusY);
+    } else {
+      text(`Triple Shot: inactive`, 10, statusY);
     }
     
-    // Display triple shot status if active
-    if (tripleShot) {
-      text(`Triple Shot: ${Math.ceil(tripleShotTime / 60)}s`, 10, statusY);
-    }
+    // Reset fill color
+    fill(255);
     
     // Display game rules
     textSize(12);
