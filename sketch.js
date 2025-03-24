@@ -29,6 +29,11 @@ let lastMusicUpdate = 0;
 let soundEnabled = true;
 let soundInitialized = false;
 
+// Vibeverse power-up variables
+let vibeScoreMultiplier = 1;
+let vibeScoreTime = 0;
+let screenFlash = 0;
+
 // Game state
 let score = 0;
 let finalScore = 0; // Store the final score when game ends
@@ -84,16 +89,25 @@ function initializeStars() {
 }
 
 function setup() {
-  // Create canvas
-  canvas = createCanvas(windowWidth, windowHeight);
+  // Create canvas with fixed dimensions
+  canvas = createCanvas(WIDTH, HEIGHT);
   canvas.style('display', 'block');
+  canvas.style('margin', 'auto'); // Center the canvas
+  
+  // Calculate scaling factors
+  let scaleFactor = min(windowWidth / WIDTH, windowHeight / HEIGHT) * 0.9;
+  if (scaleFactor > 1) scaleFactor = 1; // Don't scale up, only down
+  
+  // Apply scaling to the canvas
+  canvas.style('width', `${WIDTH * scaleFactor}px`);
+  canvas.style('height', `${HEIGHT * scaleFactor}px`);
   
   // Set up screen size tracking
-  currentWidth = windowWidth;
-  currentHeight = windowHeight;
+  currentWidth = WIDTH;
+  currentHeight = HEIGHT;
   
   // Initialize font size based on screen dimensions
-  fontSizeBase = min(windowWidth, windowHeight) / 25;
+  fontSizeBase = min(WIDTH, HEIGHT) / 25;
   
   // Check if we're likely on a touch device
   touchInterface = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -347,6 +361,20 @@ function draw() {
       console.log("At game over, killStreak is:", killStreak, "and will be stored in finalGameStats");
     }
     
+    // Update Vibeverse power-up effects
+    if (vibeScoreTime > 0) {
+      vibeScoreTime--;
+      if (vibeScoreTime === 0) {
+        vibeScoreMultiplier = 1; // Reset multiplier when time runs out
+      }
+    }
+    
+    // Fade out screen flash effect
+    if (screenFlash > 0) {
+      screenFlash -= 0.05;
+      if (screenFlash < 0) screenFlash = 0;
+    }
+    
     // Update and draw particles
     for (let i = particles.length - 1; i >= 0; i--) {
       particles[i].update();
@@ -540,7 +568,7 @@ function draw() {
             }
             
             // Apply combo multiplier
-            let pointsScored = pointValue * comboMultiplier;
+            let pointsScored = pointValue * comboMultiplier * vibeScoreMultiplier;
             score += pointsScored;
             
             // Update combo - CRITICAL for tracking enemies destroyed
@@ -721,6 +749,20 @@ function draw() {
     // Spawn boss at certain intervals
     if (level % 5 === 0 && !bossSpawned && frameCount % 300 === 0) {
       spawnBoss();
+    }
+    
+    // Draw screen flash effect for Vibeverse power-up
+    if (screenFlash > 0) {
+      noStroke();
+      fill(255, 255, 255, screenFlash * 100);
+      rect(0, 0, width, height);
+    }
+    
+    // Show Vibeverse multiplier if active
+    if (vibeScoreMultiplier > 1 && vibeScoreTime > 0) {
+      textSize(24);
+      fill(0, 255, 255);
+      text(`VIBE x${vibeScoreMultiplier} (${Math.ceil(vibeScoreTime / 60)}s)`, WIDTH - 150, 60);
     }
   } else if (gameState === "gameOver") {
     drawGameOverScreen();
@@ -2291,7 +2333,7 @@ class PowerUp {
     this.x = x !== null ? x : random(WIDTH);
     this.y = y !== null ? y : 0;
     this.speed = 2;
-    this.type = floor(random(5)); // 0: weapon upgrade, 1: shield, 2: extra life, 3: rapid fire, 4: triple shot
+    this.type = floor(random(6)); // 0: weapon upgrade, 1: shield, 2: extra life, 3: rapid fire, 4: triple shot, 5: vibeverse
     this.size = 15;
     this.rotation = 0;
   }
@@ -2353,6 +2395,19 @@ class PowerUp {
       textSize(10);
       textAlign(CENTER, CENTER);
       text("3X", 0, 0);
+    } else if (this.type === 5) {
+      // Vibeverse - cyan/teal with gradient effect
+      colorMode(HSB, 100);
+      for (let i = this.size; i > 0; i -= 3) {
+        let hue = (frameCount * 0.5 + i) % 100;
+        fill(hue, 80, 90);
+        ellipse(0, 0, i, i);
+      }
+      colorMode(RGB, 255);
+      fill(0);
+      textSize(10);
+      textAlign(CENTER, CENTER);
+      text("VIBE", 0, 0);
     }
     
     pop();
@@ -2364,7 +2419,12 @@ class PowerUp {
     else if (this.type === 1) glowColor = [50, 50, 255, 100];
     else if (this.type === 2) glowColor = [50, 255, 50, 100];
     else if (this.type === 3) glowColor = [255, 150, 0, 100];
-    else glowColor = [200, 50, 255, 100];
+    else if (this.type === 4) glowColor = [200, 50, 255, 100];
+    else if (this.type === 5) {
+      // Vibeverse glow - cycling colors
+      let cycle = (frameCount * 5) % 255;
+      glowColor = [cycle, 255 - cycle, 255, 120];
+    }
     
     fill(glowColor[0], glowColor[1], glowColor[2], glowColor[3] + sin(frameCount * 0.1) * 50);
     ellipse(this.x, this.y, this.size * 2, this.size * 2);
@@ -2408,6 +2468,70 @@ class PowerUp {
       // Create particles
       for (let i = 0; i < 20; i++) {
         particles.push(new Particle(this.x, this.y, 200, 50, 255));
+      }
+    } else if (this.type === 5) {
+      // Vibeverse power-up - multiple effects!
+      
+      // 1. Temporary score multiplier
+      vibeScoreMultiplier = 2;
+      vibeScoreTime = 300; // 5 seconds
+      
+      // 2. Destroy all enemies on screen
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        // Create explosion
+        let explosionSize = enemies[i].type === 2 ? 100 : 50;
+        explosions.push(new Explosion(
+          enemies[i].x, 
+          enemies[i].y, 
+          explosionSize, 
+          {r: random(100, 255), g: random(100, 255), b: random(100, 255)}
+        ));
+        
+        // Add points based on enemy type
+        let points = 10;
+        if (enemies[i].type === 1) points = 25;
+        if (enemies[i].type === 2) points = 100;
+        score += points;
+        
+        // Remove the enemy
+        enemies.splice(i, 1);
+      }
+      
+      // 3. Give shield
+      shieldActive = true;
+      shieldTime = 300; // 5 seconds
+      
+      // 4. Create rainbow particles
+      for (let i = 0; i < 100; i++) {
+        particles.push(new Particle(
+          this.x, 
+          this.y, 
+          random(100, 255), 
+          random(100, 255), 
+          random(100, 255),
+          120 // longer lifespan
+        ));
+      }
+      
+      // 5. Visual effect - screen flash
+      screenFlash = 1.0; // Will fade out in the draw loop
+      
+      // Play special sound
+      if (soundEnabled && soundInitialized) {
+        try {
+          // Special vibeverse sound
+          if (powerUpSound && typeof powerUpSound.amp === 'function') {
+            powerUpSound.freq(random(800, 1200));
+            powerUpSound.amp(0.2);
+            setTimeout(() => {
+              if (powerUpSound && typeof powerUpSound.amp === 'function') {
+                powerUpSound.amp(0, 0.5);
+              }
+            }, 500);
+          }
+        } catch (e) {
+          console.warn("Error playing vibeverse sound", e);
+        }
       }
     }
   }
@@ -2926,6 +3050,12 @@ async function submitScore() {
       // Insert after share button
       shareButton.parentNode.insertBefore(viewLeaderboardButton, shareButton.nextSibling);
     }
+    
+    // Automatically hide the form after 3 seconds
+    setTimeout(() => {
+      hideEmailForm();
+    }, 3000);
+    
   } catch (error) {
     console.error("Error submitting score:", error);
     inputMessage.textContent = `Error: ${error.message}`;
