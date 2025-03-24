@@ -16,13 +16,25 @@ let returnPortal;
 let portalParticles = [];
 let showReturnPortal = false;
 
+// Sound variables
+let backgroundMusic;
+let powerUpSound;
+let shootSound;
+let explosionSound;
+let enemyHitSound;
+let bossExplosionSound;
+let levelUpSound;
+let musicIntensity = 0;
+let lastMusicUpdate = 0;
+let soundEnabled = true;
+let soundInitialized = false;
+
 // Game state
 let score = 0;
 let finalScore = 0; // Store the final score when game ends
 let lives = 3;
 let escapedEnemies = 0;
 let gameOver = false;
-let shootSound, explosionSound;
 let penalizeEscapedEnemies = false;
 let gameTitle = "AI SPACE DEFENDER";
 let powerUps = [];
@@ -89,6 +101,83 @@ function setup() {
   // Initialize stars for background
   initializeStars();
   
+  // Initialize sound system
+  try {
+    console.log("Initializing sound system...");
+    
+    // First verify p5.sound is available
+    if (typeof p5 === 'undefined' || typeof p5.Oscillator !== 'function') {
+      throw new Error("p5.sound library not detected");
+    }
+    
+    // Initialize sound objects
+    shootSound = new p5.Oscillator('sawtooth');
+    shootSound.amp(0);
+    shootSound.start();
+    
+    explosionSound = new p5.Oscillator('sine');
+    explosionSound.amp(0);
+    explosionSound.start();
+    
+    // Create background music (layered approach)
+    backgroundMusic = new p5.Oscillator('sine');
+    backgroundMusic.amp(0.05); // Start with very low volume
+    backgroundMusic.freq(60);
+    backgroundMusic.start();
+    
+    // Create secondary higher-intensity music layer
+    window.musicLayerHigh = new p5.Oscillator('triangle');
+    window.musicLayerHigh.amp(0);
+    window.musicLayerHigh.freq(120);
+    window.musicLayerHigh.start();
+    
+    // Create power-up sound
+    powerUpSound = new p5.Oscillator('sine');
+    powerUpSound.amp(0);
+    powerUpSound.freq(880);
+    powerUpSound.start();
+    
+    // Create boss explosion sound (deeper than regular explosions)
+    bossExplosionSound = new p5.Oscillator('square');
+    bossExplosionSound.amp(0);
+    bossExplosionSound.start();
+    
+    // Create level up sound
+    levelUpSound = new p5.Oscillator('triangle');
+    levelUpSound.amp(0);
+    levelUpSound.freq(660);
+    levelUpSound.start();
+    
+    // Create enemy hit sound
+    enemyHitSound = new p5.Oscillator('square');
+    enemyHitSound.amp(0);
+    enemyHitSound.freq(330);
+    enemyHitSound.start();
+    
+    // Play a test sound at zero volume to verify sound actually works
+    shootSound.amp(0.01);
+    setTimeout(() => { shootSound.amp(0); }, 10);
+    
+    // Mark sound as successfully initialized
+    soundInitialized = true;
+    console.log("Sound initialized successfully");
+  } catch (e) {
+    // If anything goes wrong, disable sound completely
+    console.warn("Sound initialization failed, disabling sound:", e);
+    soundEnabled = false;
+    soundInitialized = false;
+    
+    // Create dummy sound objects with methods that do nothing to prevent errors
+    shootSound = { amp: () => {}, freq: () => {}, start: () => {}, play: () => {}, started: false };
+    explosionSound = { amp: () => {}, freq: () => {}, start: () => {}, play: () => {}, started: false };
+    backgroundMusic = { amp: () => {}, freq: () => {}, start: () => {}, play: () => {}, pan: () => {}, getAmp: () => 0, started: false };
+    window.musicLayerHigh = { amp: () => {}, freq: () => {}, start: () => {}, play: () => {}, getAmp: () => 0, started: false };
+    powerUpSound = { amp: () => {}, freq: () => {}, start: () => {}, play: () => {}, started: false };
+    bossExplosionSound = { amp: () => {}, freq: () => {}, start: () => {}, play: () => {}, started: false };
+    levelUpSound = { amp: () => {}, freq: () => {}, start: () => {}, play: () => {}, started: false };
+    enemyHitSound = { amp: () => {}, freq: () => {}, start: () => {}, play: () => {}, started: false };
+  }
+  
   // Create player ship
   player = new Player();
   
@@ -125,6 +214,96 @@ function setup() {
     
     // Welcome message is handled in the HTML
     console.log("Player entered from portal:", window.portalParams);
+  }
+}
+
+// Function to update the dynamic soundtrack based on gameplay intensity
+function updateDynamicMusic() {
+  // Skip completely if sound is disabled
+  if (!soundEnabled || !soundInitialized) return;
+  
+  // Update only every 500ms to avoid too frequent changes
+  if (millis() - lastMusicUpdate < 500) return;
+  lastMusicUpdate = millis();
+  
+  try {
+    // Calculate intensity based on:
+    // 1. Number of enemies on screen
+    // 2. Player's lives (fewer lives = more intense)
+    // 3. Score progression
+    // 4. Boss presence
+    
+    let baseIntensity = 0.2;
+    let enemyFactor = min(1, enemies.length / 10) * 0.3; // More enemies = more intense
+    let livesFactor = (1 - (lives / 3)) * 0.2; // Fewer lives = more intense
+    let scoreFactor = min(1, score / 5000) * 0.3; // Higher score = more intense
+    let bossFactor = (bossSpawned && !bossDefeated) ? 0.4 : 0; // Boss adds intensity
+    
+    // Calculate new intensity (0 to 1 scale)
+    let targetIntensity = baseIntensity + enemyFactor + livesFactor + scoreFactor + bossFactor;
+    targetIntensity = constrain(targetIntensity, 0.1, 0.9);
+    
+    // Smoothly transition to new intensity (avoid abrupt changes)
+    musicIntensity = lerp(musicIntensity, targetIntensity, 0.1);
+    
+    // Safety check before accessing audio objects
+    if (!backgroundMusic || typeof backgroundMusic.amp !== 'function') return;
+    
+    // Adjust base music layer with more audible volumes
+    let baseVolume = min(0.25, 0.1 + (musicIntensity * 0.15));
+    backgroundMusic.amp(baseVolume); 
+    backgroundMusic.freq(map(musicIntensity, 0, 1, 80, 150)); // Higher pitch with intensity
+    
+    // If we have a high intensity layer, control it separately
+    if (window.musicLayerHigh && typeof window.musicLayerHigh.amp === 'function') {
+      let highLayerVolume = min(0.2, musicIntensity * 0.2);
+      window.musicLayerHigh.amp(highLayerVolume); // Fade in the intense layer based on gameplay
+    }
+  } catch (e) {
+    // Log error but don't disable all sound for minor errors
+    console.error("Music update error:", e);
+  }
+}
+
+// Function to play the shooting sound
+function playShootSound(weaponLevel = 1, isPowerShot = false) {
+  // Skip if sound is disabled
+  if (!soundEnabled || !soundInitialized) return;
+  
+  try {
+    // Skip if sound is disabled or not available
+    if (!shootSound || typeof shootSound.amp !== 'function' || 
+        typeof shootSound.freq !== 'function') return;
+    
+    // Base frequency varies by weapon level
+    let baseFreq = 220 + (weaponLevel * 30);
+    
+    // Add some random variation for more natural sound
+    let randomPitch = random(0.95, 1.05);
+    let finalFreq = baseFreq * randomPitch;
+    
+    // Set the frequency first
+    shootSound.freq(finalFreq);
+    
+    // Power shots sound more impactful
+    if (isPowerShot) {
+      finalFreq *= 0.8; // Deeper sound for power shots
+      shootSound.amp(0.15); // Slightly increased from 0.1
+    } else {
+      // Regular shots vary by weapon level
+      let ampLevel = 0.1 + (weaponLevel * 0.02); // Increased from 0.05
+      shootSound.amp(min(0.2, ampLevel)); // Increased from 0.15
+    }
+    
+    // Rapid falloff - essential for hearing the sound
+    setTimeout(() => {
+      if (shootSound && typeof shootSound.amp === 'function') {
+        shootSound.amp(0, 0.1); // Quick falloff over 100ms
+      }
+    }, 70);
+  } catch (e) {
+    // Log error but don't disable all sound for small errors
+    console.error("Shoot sound error:", e);
   }
 }
 
@@ -1090,12 +1269,54 @@ function restartGame() {
   console.log("Game restarted!");
 }
 
-function playExplosionSound() {
+function playExplosionSound(size = 1, isEnemy = true) {
+  // Skip if sound is disabled
+  if (!soundEnabled || !soundInitialized) return;
+  
   try {
-    explosionSound.amp(0.5, 0.1); // Ramp amplitude to 0.5 over 0.1 seconds
-    setTimeout(() => explosionSound.amp(0, 0.1), 200); // Ramp back to 0 after 200ms
+    // Choose the appropriate sound based on explosion type
+    let soundToPlay = isEnemy ? explosionSound : bossExplosionSound;
+    
+    // Skip if sound is disabled or not available
+    if (!soundToPlay || typeof soundToPlay.amp !== 'function' || 
+        typeof soundToPlay.freq !== 'function') return;
+
+    // Create size-based variation for more satisfying and varied explosions
+    let sizeVariation = size * 0.5;
+    let randomPitch = random(0.9, 1.1);
+    
+    // Set frequency first
+    if (size > 2) {
+      soundToPlay.freq(random(60, 80) * randomPitch);
+    } else {
+      soundToPlay.freq((120 - size * 15) * randomPitch);
+    }
+    
+    // Then set amplitude - use more noticeable volumes
+    if (size > 2) {
+      soundToPlay.amp(min(0.3, 0.15 + sizeVariation * 0.15));
+      
+      // For big explosions, add a second explosion sound with delay
+      setTimeout(() => {
+        if (explosionSound && typeof explosionSound.amp === 'function') {
+          explosionSound.freq(random(100, 120));
+          explosionSound.amp(0.15);
+          setTimeout(() => explosionSound.amp(0, 0.2), 150);
+        }
+      }, 100);
+    } else {
+      soundToPlay.amp(min(0.25, 0.1 + sizeVariation * 0.15));
+    }
+    
+    // Make sure we have a proper falloff
+    setTimeout(() => {
+      if (soundToPlay && typeof soundToPlay.amp === 'function') {
+        soundToPlay.amp(0, 0.3); // Fade out over 300ms
+      }
+    }, 200);
   } catch (e) {
-    console.warn("Error playing explosion sound");
+    // Log error but don't disable all sound for small errors
+    console.error("Explosion sound error:", e);
   }
 }
 
