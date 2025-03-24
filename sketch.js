@@ -780,18 +780,21 @@ function draw() {
       spawnBoss();
     }
     
-    // Draw screen flash effect for Vibeverse power-up
-    if (screenFlash > 0) {
-      noStroke();
-      fill(255, 255, 255, screenFlash * 100);
-      rect(0, 0, width, height);
-    }
-    
     // Show Vibeverse multiplier if active
     if (vibeScoreMultiplier > 1 && vibeScoreTime > 0) {
       textSize(24);
       fill(0, 255, 255);
       text(`VIBE x${vibeScoreMultiplier} (${Math.ceil(vibeScoreTime / 60)}s)`, WIDTH - 150, 60);
+    }
+    
+    // Draw game controls instructions if in playing state
+    drawGameControls();
+    
+    // Draw screen flash effect for Vibeverse power-up
+    if (screenFlash > 0) {
+      noStroke();
+      fill(255, 255, 255, screenFlash * 100);
+      rect(0, 0, width, height);
     }
   } else if (gameState === "gameOver") {
     drawGameOverScreen();
@@ -3431,4 +3434,101 @@ function drawPortalParticles() {
     fill(p.color[0], p.color[1], p.color[2], p.color[3]);
     ellipse(p.x, p.y, p.size, p.size);
   }
+}
+
+// Function to draw game controls instructions on the left side
+function drawGameControls() {
+  push();
+  // Position on the left side of the screen
+  translate(20, HEIGHT - 160);
+  
+  // Semi-transparent background for better readability
+  fill(0, 0, 20, 180);
+  stroke(100, 150, 255, 100);
+  strokeWeight(1);
+  rect(0, 0, 130, 140, 10);
+  
+  // Title
+  fill(255);
+  noStroke();
+  textSize(14);
+  textAlign(CENTER);
+  text("CONTROLS", 65, 20);
+  
+  // Arrow keys for movement
+  textAlign(LEFT);
+  textSize(12);
+  text("Movement:", 10, 45);
+  
+  // Draw arrow keys
+  strokeWeight(1);
+  stroke(200, 200, 200);
+  fill(40, 40, 60);
+  
+  // Up arrow
+  rect(45, 55, 24, 24, 3);
+  fill(200, 200, 200);
+  noStroke();
+  triangle(57, 60, 52, 70, 62, 70);
+  
+  // Left arrow
+  fill(40, 40, 60);
+  stroke(200, 200, 200);
+  rect(20, 80, 24, 24, 3);
+  fill(200, 200, 200);
+  noStroke();
+  triangle(25, 92, 35, 87, 35, 97);
+  
+  // Down arrow
+  fill(40, 40, 60);
+  stroke(200, 200, 200);
+  rect(45, 80, 24, 24, 3);
+  fill(200, 200, 200);
+  noStroke();
+  triangle(57, 95, 52, 85, 62, 85);
+  
+  // Right arrow
+  fill(40, 40, 60);
+  stroke(200, 200, 200);
+  rect(70, 80, 24, 24, 3);
+  fill(200, 200, 200);
+  noStroke();
+  triangle(79, 92, 69, 87, 69, 97);
+  
+  // Spacebar for shooting
+  textAlign(LEFT);
+  fill(255);
+  text("Shoot:", 10, 120);
+  
+  fill(40, 40, 60);
+  stroke(200, 200, 200);
+  rect(50, 110, 70, 20, 3);
+  fill(200, 200, 200);
+  noStroke();
+  textSize(10);
+  textAlign(CENTER);
+  text("SPACE", 85, 123);
+  
+  pop();
+}
+
+// In the draw function, add a call to drawGameControls() after everything else is drawn
+// Add right before the screen flash effect, around line 613
+
+    // Show Vibeverse multiplier if active
+    if (vibeScoreMultiplier > 1 && vibeScoreTime > 0) {
+      textSize(24);
+      fill(0, 255, 255);
+      text(`VIBE x${vibeScoreMultiplier} (${Math.ceil(vibeScoreTime / 60)}s)`, WIDTH - 150, 60);
+    }
+    
+    // Draw game controls instructions if in playing state
+    drawGameControls();
+    
+    // Draw screen flash effect for Vibeverse power-up
+    if (screenFlash > 0) {
+      noStroke();
+      fill(255, 255, 255, screenFlash * 100);
+      rect(0, 0, width, height);
+    }
 }
