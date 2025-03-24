@@ -338,6 +338,89 @@
     });
   </script>
   
+  <!-- Portal system for Vibe Jam -->
+  <script>
+    // Store portal parameters globally for use in the game
+    window.portalParams = {
+      fromPortal: false,
+      username: '',
+      color: '',
+      speed: 0,
+      referrer: '',
+      portalActive: true
+    };
+    
+    // Function to get URL parameters
+    function getUrlParams() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const params = {};
+      
+      // Check if coming from portal
+      params.fromPortal = urlParams.has('portal') && urlParams.get('portal') === 'true';
+      
+      // Get player parameters
+      params.username = urlParams.get('username') || '';
+      params.color = urlParams.get('color') || '';
+      params.speed = parseFloat(urlParams.get('speed') || '0');
+      params.referrer = urlParams.get('ref') || '';
+      
+      // Additional parameters
+      params.avatarUrl = urlParams.get('avatar_url') || '';
+      params.team = urlParams.get('team') || '';
+      
+      return params;
+    }
+    
+    // Initialize portal parameters on page load
+    window.addEventListener('load', function() {
+      window.portalParams = getUrlParams();
+      console.log('Portal parameters:', window.portalParams);
+      
+      // Add a message if coming from a portal
+      if (window.portalParams.fromPortal) {
+        const portalMessage = document.createElement('div');
+        portalMessage.style.position = 'absolute';
+        portalMessage.style.top = '10px';
+        portalMessage.style.left = '10px';
+        portalMessage.style.color = 'white';
+        portalMessage.style.zIndex = '1000';
+        portalMessage.style.fontFamily = 'Arial, sans-serif';
+        portalMessage.style.fontSize = '16px';
+        portalMessage.style.background = 'rgba(0,0,0,0.5)';
+        portalMessage.style.padding = '5px 10px';
+        portalMessage.style.borderRadius = '5px';
+        portalMessage.style.transition = 'opacity 2s';
+        portalMessage.innerHTML = `Welcome, ${window.portalParams.username || 'Space Traveler'}! Return portal activated.`;
+        
+        document.body.appendChild(portalMessage);
+        
+        // Fade out after 5 seconds
+        setTimeout(() => {
+          portalMessage.style.opacity = '0';
+          setTimeout(() => {
+            document.body.removeChild(portalMessage);
+          }, 2000);
+        }, 5000);
+      }
+    });
+    
+    // Function to enter a portal
+    window.enterPortal = function(playerName, playerColor, playerSpeed) {
+      // Build portal URL
+      const portalUrl = new URL('http://portal.pieter.com');
+      
+      // Add parameters
+      portalUrl.searchParams.append('username', playerName || 'SpaceDefender');
+      portalUrl.searchParams.append('color', playerColor || 'blue');
+      portalUrl.searchParams.append('speed', playerSpeed || '5');
+      portalUrl.searchParams.append('ref', window.location.href);
+      
+      // Redirect to portal
+      console.log('Entering portal to:', portalUrl.toString());
+      window.location.href = portalUrl.toString();
+    };
+  </script>
+  
   <!-- Load sketch.js after everything else -->
   <script src="sketch.js"></script>
   

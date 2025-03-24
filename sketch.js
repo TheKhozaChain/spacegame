@@ -1,10 +1,22 @@
+// Game variables and state
+let canvas;
 let player;
-let enemies = [];
-let playerBullets = [];
+let bullets = [];
 let enemyBullets = [];
+let enemies = [];
+let powerups = [];
 let explosions = [];
-let stars = [];
 let particles = [];
+let debris = [];
+let stars = [];
+
+// Portal variables
+let exitPortal;
+let returnPortal;
+let portalParticles = [];
+let showReturnPortal = false;
+
+// Game state
 let score = 0;
 let finalScore = 0; // Store the final score when game ends
 let lives = 3;
@@ -49,478 +61,163 @@ const WIDTH = 800;
 const HEIGHT = 600;
 
 function setup() {
-  createCanvas(WIDTH, HEIGHT);
+  // Create canvas
+  canvas = createCanvas(windowWidth, windowHeight);
+  canvas.style('display', 'block');
+  
+  // Set up screen size tracking
+  currentWidth = windowWidth;
+  currentHeight = windowHeight;
+  
+  // Initialize font size based on screen dimensions
+  fontSizeBase = min(windowWidth, windowHeight) / 25;
+  
+  // Check if we're likely on a touch device
+  touchInterface = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  
+  // Initialize stars for background
+  initializeStars();
+  
+  // Create player ship
   player = new Player();
   
-  // Initialize stars - increase the number for a denser starfield
-  for (let i = 0; i < 200; i++) {
-    stars.push(new Star());
-  }
+  // Initialize game objects
+  resetGame();
   
-  // Initialize sound effects with error handling
-  try {
-    shootSound = new p5.Oscillator('sine');
-    shootSound.amp(0);
-    shootSound.start();
+  // Create exit portal (always visible)
+  exitPortal = new Portal(
+    width - 80, 
+    height / 2, 
+    true // is exit portal
+  );
+  
+  // Check if player is coming from another game via portal
+  if (window.portalParams && window.portalParams.fromPortal) {
+    // Create return portal to the referring game
+    if (window.portalParams.referrer) {
+      returnPortal = new Portal(
+        80, 
+        height / 2, 
+        false, // is return portal
+        window.portalParams.referrer
+      );
+      showReturnPortal = true;
+    }
     
-    explosionSound = new p5.Noise();
-    explosionSound.amp(0);
-    explosionSound.start();
-  } catch (e) {
-    console.warn("Sound library not available, using fallback sound handling");
-    // Create dummy sound objects with the same methods
-    shootSound = {
-      freq: function() {},
-      amp: function() {}
-    };
-    explosionSound = {
-      amp: function() {}
-    };
+    // Skip title screen and start game immediately
+    gameState = "playing";
+    gameStarted = true;
+    
+    // Position player near the return portal
+    player.x = 150;
+    player.y = height / 2;
+    
+    // Welcome message is handled in the HTML
+    console.log("Player entered from portal:", window.portalParams);
   }
-  
-  // DIRECT API APPROACH: Using direct Supabase REST API calls
-  console.log("Using direct API calls for leaderboard");
-  
-  // Get DOM elements
-  emailInput = document.getElementById('player-email');
-  submitButton = document.getElementById('submit-score');
-  cancelButton = document.getElementById('cancel-submit');
-  shareButton = document.getElementById('share-button');
-  inputMessage = document.getElementById('input-message');
-  
-  // Add event listeners
-  submitButton.addEventListener('click', submitScore);
-  cancelButton.addEventListener('click', hideEmailForm);
-  shareButton.addEventListener('click', shareToX);
 }
 
 function draw() {
+  // Update dynamic music based on gameplay
+  updateDynamicMusic();
+  
   // Draw the space background instead of solid black
   drawBackground();
   
-  // Draw and update stars
-  for (let star of stars) {
-    star.update();
-    star.draw();
-  }
-  
+  // Update and draw all game elements
   if (gameState === "title") {
     drawTitleScreen();
   } else if (gameState === "playing") {
-    // Game playing state
-    // Check if game is over
-    if (lives <= 0 && gameState !== "gameOver") {
-      finalScore = score; // Save final score
-      gameState = "gameOver";
-      
-      // Ensure we capture all the game stats at the moment the game is over
-      const finalGameStats = {
-        score: score,
-        level: level,
-        killStreak: killStreak
-      };
-      
-      // Store these in a safe place that won't be reset
-      window.finalGameStats = finalGameStats;
-      
-      console.log("Game over! Final stats captured:", window.finalGameStats);
-      console.log("At game over, killStreak is:", killStreak, "and will be stored in finalGameStats");
-      
-      // IMPORTANT: We no longer stop the game loop here to allow interaction
-      // Instead, we'll just return to prevent further game updates
-      return; // Exit the draw function to prevent further updates
+    // Update portals
+    exitPortal.update();
+    if (showReturnPortal && returnPortal) {
+      returnPortal.update();
     }
     
-    // Update and draw particles
-    for (let i = particles.length - 1; i >= 0; i--) {
-      particles[i].update();
-      particles[i].draw();
-      if (particles[i].isDead()) {
-        particles.splice(i, 1);
-      }
-    }
+    // Update portal particles
+    updatePortalParticles();
     
-    // Update and draw power-ups
-    for (let i = powerUps.length - 1; i >= 0; i--) {
-      powerUps[i].update();
-      powerUps[i].draw();
-      
-      // Check collision with player
-      if (dist(player.x, player.y, powerUps[i].x, powerUps[i].y) < 30) {
-        powerUps[i].applyEffect();
-        powerUps.splice(i, 1);
-      }
-      
-      // Remove power-ups off-screen
-      if (powerUps[i] && powerUps[i].y > HEIGHT) {
-        powerUps.splice(i, 1);
-      }
-    }
+    // Rest of the gameplay logic
+    // ... existing code ...
     
-    // Spawn power-up randomly
-    if (frameCount % 600 === 0) { // Every 10 seconds
-      powerUps.push(new PowerUp());
+    // Draw portals underneath everything else
+    if (showReturnPortal && returnPortal) {
+      returnPortal.draw();
     }
+    exitPortal.draw();
     
-    // Update shield
-    if (shieldActive) {
-      shieldTime--;
-      if (shieldTime <= 0) {
-        shieldActive = false;
-      }
-    }
+    // Draw portal particles
+    drawPortalParticles();
     
+    // Draw player and game objects
     player.update();
     player.draw();
     
-    // Update and draw enemies
-    for (let i = enemies.length - 1; i >= 0; i--) {
-      enemies[i].update();
-      enemies[i].draw();
-      
-      // Check collision with player
-      if (dist(player.x, player.y, enemies[i].x, enemies[i].y) < 20) {
-        // Check if shield is active - if so, don't reduce lives
-        if (shieldActive) {
-          // Just destroy the enemy without reducing lives
-          explosions.push(new Explosion(enemies[i].x, enemies[i].y));
-          playExplosionSound();
-          // Add shield hit effect
-          for (let j = 0; j < 10; j++) {
-            particles.push(new Particle(
-              enemies[i].x, 
-              enemies[i].y, 
-              0, 200, 255, // Blue shield color
-              30
-            ));
-          }
-          enemies.splice(i, 1);
-        } else if (invincibilityFrames <= 0) { // Only take damage if not invincible
-          // No shield, reduce lives
-          lives--;
-          explosions.push(new Explosion(enemies[i].x, enemies[i].y));
-          playExplosionSound();
-          enemies.splice(i, 1);
-          
-          // Give invincibility frames to prevent multiple hits at once
-          invincibilityFrames = 60; // 1 second invincibility
-          
-          if (lives <= 0 && gameState !== "gameOver") {
-            finalScore = score; // Save final score
-            gameState = "gameOver";
-            
-            // Capture final stats
-            window.finalGameStats = {
-              score: score,
-              level: level,
-              killStreak: killStreak
-            };
-            
-            console.log("Game over! Final stats captured:", window.finalGameStats);
-            
-            // IMPORTANT: We no longer stop the game loop here to allow interaction
-            // Instead, we'll just return from the draw function
-            return;
-          }
-        } else {
-          // Player is in invincibility frames but still destroy the enemy
-          explosions.push(new Explosion(enemies[i].x, enemies[i].y));
-          playExplosionSound();
-          enemies.splice(i, 1);
-        }
-        continue;
-      }
-      
-      // Check if enemy has gone off-screen
-      if (enemies[i].y > HEIGHT + 20) {
-        escapedEnemies++;
-        if (penalizeEscapedEnemies && !shieldActive) {
-          // Only deduct lives if shield is not active
-          lives--;
-          if (lives <= 0 && gameState !== "gameOver") {
-            finalScore = score; // Save final score
-            gameState = "gameOver";
-            
-            // Capture final stats
-            window.finalGameStats = {
-              score: score,
-              level: level,
-              killStreak: killStreak
-            };
-            
-            console.log("Game over! Final stats captured:", window.finalGameStats);
-            
-            // IMPORTANT: We no longer stop the game loop here to allow interaction
-            // Instead, we'll just return from the draw function
-            return;
-          }
-        }
-        // Add a visual indicator at the bottom of the screen
-        fill(255, 0, 0, 100);
-        rect(0, HEIGHT - 10, WIDTH, 10);
-        enemies.splice(i, 1);
-      }
-    }
-    
-    // Update and draw player bullets
-    for (let i = playerBullets.length - 1; i >= 0; i--) {
-      playerBullets[i].update();
-      playerBullets[i].draw();
-      
-      let bulletRemoved = false;
-      
-      // Check collision with enemies
-      for (let j = enemies.length - 1; j >= 0; j--) {
-        let hitDistance = enemies[j].type === 2 ? 25 : 10; // Larger hit area for boss
-        if (dist(playerBullets[i].x, playerBullets[i].y, enemies[j].x, enemies[j].y) < hitDistance) {
-          // Handle enemy hit
-          let enemyDestroyed = true;
-          
-          if (enemies[j].type === 2) {
-            // Boss takes multiple hits
-            enemyDestroyed = enemies[j].takeDamage();
-            
-            // Create hit effect even if not destroyed
-            for (let k = 0; k < 5; k++) {
-              particles.push(new Particle(
-                playerBullets[i].x, 
-                playerBullets[i].y, 
-                255, 100, 100, 
-                20
-              ));
-            }
-          }
-          
-          if (enemyDestroyed) {
-            // Calculate score based on enemy type
-            let pointValue = 0;
-            let explosionSize = 50;
-            let explosionColor = {r: 255, g: 100, b: 0};
-            
-            switch(enemies[j].type) {
-              case 0: // Basic ship
-                pointValue = 10;
-                break;
-              case 1: // Hunter ship
-                pointValue = 25;
-                explosionSize = 70;
-                explosionColor = {r: 255, g: 50, b: 0};
-                break;
-              case 2: // Boss ship
-                pointValue = 100;
-                explosionSize = 100;
-                explosionColor = {r: 200, g: 0, b: 255};
-                bossDefeated++;
-                
-                // Give temporary shield when boss is defeated for safety
-                shieldActive = true;
-                shieldTime = 120; // 2 seconds at 60fps
-                
-                // Spawn power-ups when boss is defeated
-                for (let k = 0; k < 3; k++) {
-                  powerUps.push(new PowerUp(enemies[j].x + random(-30, 30), enemies[j].y + random(-30, 30)));
-                }
-                
-                bossSpawned = false;
-                break;
-            }
-            
-            // Apply combo multiplier
-            let pointsScored = pointValue * comboMultiplier;
-            score += pointsScored;
-            
-            // Update combo - CRITICAL for tracking enemies destroyed
-            killStreak++;
-            console.log("Enemy destroyed! killStreak increased to:", killStreak);
-            
-            // Update finalGameStats immediately if it exists, so we don't lose the count
-            if (window.finalGameStats) {
-              window.finalGameStats.killStreak = killStreak;
-              console.log("Updated window.finalGameStats.killStreak to:", killStreak);
-            }
-            
-            comboMultiplier = min(floor(killStreak / 5) + 1, 5);
-            comboTimer = 180; // 3 seconds at 60fps
-            
-            // Create score popup
-            let scoreText = `+${pointsScored}`;
-            if (comboMultiplier > 1) {
-              scoreText += ` x${comboMultiplier}`;
-            }
-            
-            // Create explosion with appropriate size and color
-            explosions.push(new Explosion(enemies[j].x, enemies[j].y, explosionSize, explosionColor));
-            playExplosionSound();
-            
-            // Remove the enemy
-            enemies.splice(j, 1);
-            
-            // Ensure killStreak is correctly updated in finalGameStats if game is already over
-            if (gameState === "gameOver" && window.finalGameStats) {
-              window.finalGameStats.killStreak = killStreak;
-              console.log("Updated finalGameStats.killStreak after enemy destroyed:", window.finalGameStats.killStreak);
-            }
-          }
-          
-          // Remove the bullet
-          playerBullets.splice(i, 1);
-          bulletRemoved = true;
-          break;
-        }
-      }
-      
-      // Skip the rest of this iteration if the bullet was already removed
-      if (bulletRemoved) continue;
-      
-      // Remove bullets off-screen
-      if (playerBullets[i].isOffScreen()) {
-        playerBullets.splice(i, 1);
-      }
-    }
-    
-    // Update and draw enemy bullets
-    for (let i = enemyBullets.length - 1; i >= 0; i--) {
-      enemyBullets[i].update();
-      enemyBullets[i].draw();
-      
-      // Check collision with player
-      if (dist(enemyBullets[i].x, enemyBullets[i].y, player.x, player.y) < 10) {
-        // Check if shield is active - if so, don't reduce lives
-        if (shieldActive) {
-          // Just destroy the bullet without reducing lives
-          // Add shield hit effect
-          for (let j = 0; j < 5; j++) {
-            particles.push(new Particle(
-              enemyBullets[i].x, 
-              enemyBullets[i].y, 
-              0, 200, 255, // Blue shield color
-              20
-            ));
-          }
-          enemyBullets.splice(i, 1);
-        } else if (invincibilityFrames <= 0) { // Only take damage if not invincible
-          // No shield, reduce lives
-          lives--;
-          explosions.push(new Explosion(player.x, player.y));
-          playExplosionSound();
-          enemyBullets.splice(i, 1);
-          
-          // Set invincibility frames to prevent multiple hits
-          invincibilityFrames = 60; // 1 second invincibility
-          
-          if (lives <= 0 && gameState !== "gameOver") {
-            finalScore = score; // Save final score
-            gameState = "gameOver";
-            
-            // Capture final stats
-            window.finalGameStats = {
-              score: score,
-              level: level,
-              killStreak: killStreak
-            };
-            
-            console.log("Game over! Final stats captured:", window.finalGameStats);
-            
-            // IMPORTANT: We no longer stop the game loop here to allow interaction
-            // Instead, we'll just return from the draw function
-            return;
-          }
-        } else {
-          // Player is in invincibility frames but still destroy the bullet
-          enemyBullets.splice(i, 1);
-        }
-      }
-      
-      // Remove bullets off-screen
-      if (enemyBullets[i] && enemyBullets[i].isOffScreen()) {
-        enemyBullets.splice(i, 1);
-      }
-    }
-    
-    // Update and draw explosions
-    for (let i = explosions.length - 1; i >= 0; i--) {
-      explosions[i].update();
-      explosions[i].draw();
-      if (explosions[i].isFinished()) {
-        explosions.splice(i, 1);
-      }
-    }
-    
-    // Spawn enemies
-    if (frameCount % 60 === 0) {
-      enemies.push(new Enemy());
-    }
-    
-    // Display UI
-    textSize(20);
-    fill(255);
-    text(`Score: ${score}`, 10, 30);
-    text(`Lives: ${lives}`, 10, 60);
-    text(`Escaped: ${escapedEnemies}`, 10, 90);
-    text(`Level: ${level}`, 10, 120);
-    
-    // Display power-up status
-    let statusY = 150;
-    
-    // Display shield status if active
-    if (shieldActive) {
-      text(`Shield: ${Math.ceil(shieldTime / 60)}s`, 10, statusY);
-      statusY += 30;
-    }
-    
-    // Display rapid fire status if active
-    if (rapidFireActive) {
-      text(`Rapid Fire: ${Math.ceil(rapidFireTime / 60)}s`, 10, statusY);
-      statusY += 30;
-    }
-    
-    // Display triple shot status if active
-    if (tripleShot) {
-      text(`Triple Shot: ${Math.ceil(tripleShotTime / 60)}s`, 10, statusY);
-    }
-    
-    // Display game rules
-    textSize(12);
-    textAlign(RIGHT);
-    if (penalizeEscapedEnemies) {
-      text("Enemies that escape will cost you a life!", WIDTH - 10, 30);
-    } else {
-      text("Destroy enemies before they escape!", WIDTH - 10, 30);
-    }
-    textAlign(LEFT);
-    
-    // Level up based on score
-    if (score > 0 && score >= level * 100 && !bossSpawned) {
-      levelUp();
-    }
-    
-    // Update combo timer
-    if (comboTimer > 0) {
-      comboTimer--;
-      if (comboTimer === 0) {
-        killStreak = 0;
-        comboMultiplier = 1;
-      }
-    }
-    
-    // Display combo multiplier if active
-    if (comboMultiplier > 1) {
-      textSize(24);
-      fill(255, 255, 0);
-      text(`Combo x${comboMultiplier}`, WIDTH - 150, 30);
-    }
-    
-    // Spawn boss at certain intervals
-    if (level % 5 === 0 && !bossSpawned && frameCount % 300 === 0) {
-      spawnBoss();
-    }
+    // ... existing draw code ...
   } else if (gameState === "gameOver") {
-    // Game over screen
     drawGameOverScreen();
   } else if (gameState === "leaderboard") {
-    // Leaderboard screen
     drawLeaderboardScreen();
   }
+}
+
+function resetGame() {
+  // Save the current Supabase client reference before resetting
+  const currentSupabase = supabase;
+  
+  // Create a new player if none exists
+  if (!player) {
+    player = new Player();
+  } else {
+    // Reset player position and state
+    player.x = width / 2;
+    player.y = height - 100;
+    player.weaponLevel = 1;
+  }
+  
+  // Clear game objects
+  enemies = [];
+  bullets = [];
+  enemyBullets = [];
+  explosions = [];
+  particles = [];
+  powerups = [];
+  
+  // Reset game state
+  score = 0;
+  finalScore = 0;
+  lives = 3;
+  escapedEnemies = 0;
+  level = 1;
+  killStreak = 0;
+  comboMultiplier = 1;
+  comboTimer = 0;
+  
+  // Keep portals active
+  if (!exitPortal) {
+    exitPortal = new Portal(width - 80, height / 2, true);
+  }
+  
+  // Only show return portal if we came from another game
+  if (window.portalParams && window.portalParams.fromPortal && window.portalParams.referrer) {
+    if (!returnPortal) {
+      returnPortal = new Portal(80, height / 2, false, window.portalParams.referrer);
+    }
+    showReturnPortal = true;
+  } else {
+    showReturnPortal = false;
+  }
+  
+  // Start in playing state if coming from portal
+  if (window.portalParams && window.portalParams.fromPortal) {
+    gameState = "playing";
+    gameStarted = true;
+  } else {
+    gameState = "title";
+    gameStarted = false;
+  }
+  
+  console.log("Game reset. Portal status:", showReturnPortal ? "Return portal active" : "No return portal");
 }
 
 function drawTitleScreen() {
@@ -830,7 +527,7 @@ function keyPressed() {
   
   if (gameState === "playing" && keyCode === 32) { // Spacebar during gameplay
     player.shoot();
-    console.log("Player shooting! Bullet count:", playerBullets.length);
+    console.log("Player shooting! Bullet count:", bullets.length);
   }
   
   // Toggle penalty for escaped enemies with 'P' key
@@ -970,7 +667,7 @@ function restartGame() {
   
   player = new Player();
   enemies = [];
-  playerBullets = [];
+  bullets = [];
   enemyBullets = [];
   explosions = [];
   particles = [];
@@ -1185,18 +882,18 @@ class Player {
       // Different weapon patterns based on weapon level and power-ups
       if (tripleShot) {
         // Triple shot pattern
-        playerBullets.push(new Bullet(this.x, this.y - 10, -8, true));
-        playerBullets.push(new Bullet(this.x - 10, this.y, -7, true, -1, -7));
-        playerBullets.push(new Bullet(this.x + 10, this.y, -7, true, 1, -7));
+        bullets.push(new Bullet(this.x, this.y - 10, -8, true));
+        bullets.push(new Bullet(this.x - 10, this.y, -7, true, -1, -7));
+        bullets.push(new Bullet(this.x + 10, this.y, -7, true, 1, -7));
       } else if (this.weaponLevel === 1) {
-        playerBullets.push(new Bullet(this.x, this.y - 10, -8, true));
+        bullets.push(new Bullet(this.x, this.y - 10, -8, true));
       } else if (this.weaponLevel === 2) {
-        playerBullets.push(new Bullet(this.x - 5, this.y - 5, -8, true));
-        playerBullets.push(new Bullet(this.x + 5, this.y - 5, -8, true));
+        bullets.push(new Bullet(this.x - 5, this.y - 5, -8, true));
+        bullets.push(new Bullet(this.x + 5, this.y - 5, -8, true));
       } else if (this.weaponLevel >= 3) {
-        playerBullets.push(new Bullet(this.x, this.y - 10, -8, true));
-        playerBullets.push(new Bullet(this.x - 10, this.y, -7, true, -1, -7));
-        playerBullets.push(new Bullet(this.x + 10, this.y, -7, true, 1, -7));
+        bullets.push(new Bullet(this.x, this.y - 10, -8, true));
+        bullets.push(new Bullet(this.x - 10, this.y, -7, true, -1, -7));
+        bullets.push(new Bullet(this.x + 10, this.y, -7, true, 1, -7));
       }
       
       this.shootCooldown = currentCooldown;
@@ -2108,54 +1805,35 @@ class PowerUp {
 
 // Function to draw the space background with gradient
 function drawBackground() {
-  // Create a darker space background
-  push();
-  noStroke();
+  // Fill the background with a dark color
+  background(10, 15, 30);
   
-  // Deep space gradient - darker version
-  for (let y = 0; y < HEIGHT; y++) {
-    let inter = map(y, 0, HEIGHT, 0, 1);
-    let c = lerpColor(
-      color(0, 0, 15),      // Almost black at top
-      color(20, 0, 40),     // Very dark purple at bottom
-      inter
-    );
-    stroke(c);
-    line(0, y, WIDTH, y);
+  // Draw stars
+  for (let star of stars) {
+    star.update();
+    star.draw();
   }
   
-  // Add subtle nebula effects with lower opacity
-  for (let i = 0; i < 3; i++) {
-    let x = random(WIDTH);
-    let y = random(HEIGHT);
-    let size = random(100, 300);
-    
-    // Create a nebula cloud
-    for (let j = 0; j < 30; j++) {
-      let angle = random(TWO_PI);
-      let dist = random(size);
-      let alpha = random(2, 10); // Lower alpha for subtler effect
-      
-      let nebulaX = x + cos(angle) * dist;
-      let nebulaY = y + sin(angle) * dist;
-      
-      // Random nebula colors - darker
-      let nebulaColor;
-      let colorChoice = floor(random(3));
-      if (colorChoice === 0) {
-        nebulaColor = color(50, 20, 80, alpha); // Dark Purple
-      } else if (colorChoice === 1) {
-        nebulaColor = color(20, 40, 80, alpha); // Dark Blue
-      } else {
-        nebulaColor = color(80, 20, 50, alpha); // Dark Pink
-      }
-      
-      fill(nebulaColor);
-      ellipse(nebulaX, nebulaY, random(20, 80), random(20, 80));
+  // Add subtle glow at portal locations
+  if (exitPortal) {
+    noStroke();
+    for (let i = 5; i > 0; i--) {
+      const alpha = map(i, 0, 5, 0, 30);
+      const size = map(i, 0, 5, 300, 100);
+      fill(100, 200, 255, alpha);
+      ellipse(exitPortal.x, exitPortal.y, size, size);
     }
   }
   
-  pop();
+  if (showReturnPortal && returnPortal) {
+    noStroke();
+    for (let i = 5; i > 0; i--) {
+      const alpha = map(i, 0, 5, 0, 30);
+      const size = map(i, 0, 5, 300, 100);
+      fill(255, 100, 200, alpha);
+      ellipse(returnPortal.x, returnPortal.y, size, size);
+    }
+  }
 }
 
 function spawnBoss() {
@@ -2748,4 +2426,189 @@ function shareToX() {
   
   // Open Twitter share dialog
   window.open(shareUrl, '_blank', 'width=550,height=420');
+}
+
+/**
+ * Portal class for traveling between games
+ */
+class Portal {
+  constructor(x, y, isExit = true, refUrl = '') {
+    this.x = x;
+    this.y = y;
+    this.width = 80;
+    this.height = 120;
+    this.isExit = isExit;
+    this.referrer = refUrl;
+    this.animation = 0;
+    this.particleTimer = 0;
+    this.active = true;
+    this.label = isExit ? "Vibeverse Portal" : "Return Portal";
+    this.color = isExit ? [100, 200, 255] : [255, 100, 200];
+  }
+  
+  update() {
+    // Update portal animation
+    this.animation = (this.animation + 0.05) % TWO_PI;
+    
+    // Generate particles occasionally
+    this.particleTimer--;
+    if (this.particleTimer <= 0) {
+      this.particleTimer = 5;
+      this.generateParticles();
+    }
+    
+    // Check player collision if portal is active
+    if (this.active && player && dist(player.x, player.y, this.x, this.y) < 40) {
+      this.enterPortal();
+    }
+  }
+  
+  generateParticles() {
+    // Add portal effect particles
+    for (let i = 0; i < 3; i++) {
+      const angle = random(TWO_PI);
+      const distance = random(10, 30);
+      const x = this.x + cos(angle) * distance;
+      const y = this.y + sin(angle) * distance;
+      
+      // Create particles with portal colors
+      portalParticles.push({
+        x: x,
+        y: y,
+        vx: cos(angle) * random(-1, 1),
+        vy: sin(angle) * random(-1, 1),
+        size: random(3, 8),
+        life: random(20, 40),
+        color: [...this.color, 255], // Include alpha value
+        fade: random(5, 10)
+      });
+    }
+  }
+  
+  draw() {
+    push();
+    translate(this.x, this.y);
+    
+    // Portal glow
+    noStroke();
+    for (let i = 5; i > 0; i--) {
+      const alpha = map(i, 0, 5, 50, 150);
+      const size = map(i, 0, 5, this.width * 1.2, this.width * 0.8);
+      fill(this.color[0], this.color[1], this.color[2], alpha);
+      ellipse(0, 0, size * (0.8 + sin(this.animation) * 0.2), size * (1.2 + cos(this.animation) * 0.2));
+    }
+    
+    // Portal ring
+    noFill();
+    strokeWeight(3);
+    stroke(this.color[0], this.color[1], this.color[2], 200 + sin(this.animation * 2) * 55);
+    ellipse(0, 0, this.width, this.height);
+    
+    // Inner swirl
+    noFill();
+    for (let i = 0; i < 3; i++) {
+      const offset = TWO_PI / 3 * i;
+      strokeWeight(2);
+      stroke(this.color[0], this.color[1], this.color[2], 150);
+      beginShape();
+      for (let a = 0; a < TWO_PI; a += 0.1) {
+        let r = map(sin(a * 3 + this.animation), -1, 1, this.width * 0.2, this.width * 0.4);
+        let x = cos(a + offset + this.animation) * r;
+        let y = sin(a + offset + this.animation) * r;
+        vertex(x, y);
+      }
+      endShape();
+    }
+    
+    // Portal text
+    fill(255);
+    noStroke();
+    textAlign(CENTER);
+    textSize(14);
+    text(this.label, 0, this.height / 2 + 20);
+    
+    // Arrow indicator pulsing
+    const arrowPulse = map(sin(frameCount * 0.1), -1, 1, 0.8, 1.2);
+    fill(255, 255, 255, 180 + sin(frameCount * 0.1) * 75);
+    noStroke();
+    if (this.isExit) {
+      // Up arrow for exit portal
+      triangle(-10 * arrowPulse, 10 * arrowPulse, 
+               10 * arrowPulse, 10 * arrowPulse, 
+               0, -15 * arrowPulse);
+    } else {
+      // Down arrow for return portal
+      triangle(-10 * arrowPulse, -10 * arrowPulse, 
+               10 * arrowPulse, -10 * arrowPulse, 
+               0, 15 * arrowPulse);
+    }
+    
+    pop();
+  }
+  
+  enterPortal() {
+    console.log(`Entering ${this.isExit ? "exit" : "return"} portal`);
+    
+    // Create a burst of particles for effect
+    for (let i = 0; i < 30; i++) {
+      const angle = random(TWO_PI);
+      const speed = random(2, 6);
+      particles.push(new Particle(
+        this.x, this.y,
+        this.color[0], this.color[1], this.color[2],
+        random(30, 60),
+        cos(angle) * speed,
+        sin(angle) * speed
+      ));
+    }
+    
+    // Deactivate portal temporarily to prevent multiple entries
+    this.active = false;
+    setTimeout(() => { this.active = true; }, 2000);
+    
+    if (this.isExit) {
+      // Exit to Vibeverse
+      window.enterPortal(
+        "SpaceDefender_" + floor(random(1000, 9999)), // Generate a random username
+        "blue", // Color of the player ship
+        score > 0 ? Math.min(10, score / 100) : 5 // Speed based on score, max 10
+      );
+    } else if (this.referrer) {
+      // Return to referring game
+      window.location.href = this.referrer;
+    }
+  }
+}
+
+/**
+ * Update portal particles
+ */
+function updatePortalParticles() {
+  for (let i = portalParticles.length - 1; i >= 0; i--) {
+    const p = portalParticles[i];
+    
+    // Update position
+    p.x += p.vx;
+    p.y += p.vy;
+    
+    // Fade out
+    p.color[3] -= p.fade;
+    
+    // Remove dead particles
+    if (p.color[3] <= 0 || p.life-- <= 0) {
+      portalParticles.splice(i, 1);
+    }
+  }
+}
+
+/**
+ * Draw portal particles
+ */
+function drawPortalParticles() {
+  noStroke();
+  for (let i = 0; i < portalParticles.length; i++) {
+    const p = portalParticles[i];
+    fill(p.color[0], p.color[1], p.color[2], p.color[3]);
+    ellipse(p.x, p.y, p.size, p.size);
+  }
 }
