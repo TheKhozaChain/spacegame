@@ -60,6 +60,17 @@ let inputMessage;
 const WIDTH = 800;
 const HEIGHT = 600;
 
+// Function to initialize the stars for the background
+function initializeStars() {
+  // Clear any existing stars
+  stars = [];
+  
+  // Create 200 stars for the background
+  for (let i = 0; i < 200; i++) {
+    stars.push(new Star());
+  }
+}
+
 function setup() {
   // Create canvas
   canvas = createCanvas(windowWidth, windowHeight);
@@ -137,8 +148,64 @@ function draw() {
     // Update portal particles
     updatePortalParticles();
     
-    // Rest of the gameplay logic
-    // ... existing code ...
+    // Game playing state
+    // Check if game is over
+    if (lives <= 0 && gameState !== "gameOver") {
+      finalScore = score; // Save final score
+      gameState = "gameOver";
+      
+      // Ensure we capture all the game stats at the moment the game is over
+      const finalGameStats = {
+        score: score,
+        level: level,
+        killStreak: killStreak
+      };
+      
+      // Store these in a safe place that won't be reset
+      window.finalGameStats = finalGameStats;
+      
+      console.log("Game over! Final stats captured:", window.finalGameStats);
+      console.log("At game over, killStreak is:", killStreak, "and will be stored in finalGameStats");
+    }
+    
+    // Update and draw particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      particles[i].update();
+      particles[i].draw();
+      if (particles[i].isDead()) {
+        particles.splice(i, 1);
+      }
+    }
+    
+    // Update and draw power-ups
+    for (let i = powerUps.length - 1; i >= 0; i--) {
+      powerUps[i].update();
+      powerUps[i].draw();
+      
+      // Check collision with player
+      if (dist(player.x, player.y, powerUps[i].x, powerUps[i].y) < 30) {
+        powerUps[i].applyEffect();
+        powerUps.splice(i, 1);
+      }
+      
+      // Remove power-ups off-screen
+      if (powerUps[i] && powerUps[i].y > HEIGHT) {
+        powerUps.splice(i, 1);
+      }
+    }
+    
+    // Spawn power-up randomly
+    if (frameCount % 600 === 0) { // Every 10 seconds
+      powerUps.push(new PowerUp());
+    }
+    
+    // Update shield
+    if (shieldActive) {
+      shieldTime--;
+      if (shieldTime <= 0) {
+        shieldActive = false;
+      }
+    }
     
     // Draw portals underneath everything else
     if (showReturnPortal && returnPortal) {
@@ -153,7 +220,329 @@ function draw() {
     player.update();
     player.draw();
     
-    // ... existing draw code ...
+    // Update and draw enemies
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      enemies[i].update();
+      enemies[i].draw();
+      
+      // Check collision with player
+      if (dist(player.x, player.y, enemies[i].x, enemies[i].y) < 20) {
+        // Check if shield is active - if so, don't reduce lives
+        if (shieldActive) {
+          // Just destroy the enemy without reducing lives
+          explosions.push(new Explosion(enemies[i].x, enemies[i].y));
+          playExplosionSound();
+          // Add shield hit effect
+          for (let j = 0; j < 10; j++) {
+            particles.push(new Particle(
+              enemies[i].x, 
+              enemies[i].y, 
+              0, 200, 255, // Blue shield color
+              30
+            ));
+          }
+          enemies.splice(i, 1);
+        } else if (invincibilityFrames <= 0) { // Only take damage if not invincible
+          // No shield, reduce lives
+          lives--;
+          explosions.push(new Explosion(enemies[i].x, enemies[i].y));
+          playExplosionSound();
+          enemies.splice(i, 1);
+          
+          // Give invincibility frames to prevent multiple hits at once
+          invincibilityFrames = 60; // 1 second invincibility
+          
+          if (lives <= 0 && gameState !== "gameOver") {
+            finalScore = score; // Save final score
+            gameState = "gameOver";
+            
+            // Capture final stats
+            window.finalGameStats = {
+              score: score,
+              level: level,
+              killStreak: killStreak
+            };
+          }
+        } else {
+          // Player is in invincibility frames but still destroy the enemy
+          explosions.push(new Explosion(enemies[i].x, enemies[i].y));
+          playExplosionSound();
+          enemies.splice(i, 1);
+        }
+        continue;
+      }
+      
+      // Check if enemy has gone off-screen
+      if (enemies[i].y > HEIGHT + 20) {
+        escapedEnemies++;
+        if (penalizeEscapedEnemies && !shieldActive) {
+          // Only deduct lives if shield is not active
+          lives--;
+          if (lives <= 0 && gameState !== "gameOver") {
+            finalScore = score; // Save final score
+            gameState = "gameOver";
+            
+            // Capture final stats
+            window.finalGameStats = {
+              score: score,
+              level: level,
+              killStreak: killStreak
+            };
+          }
+        }
+        // Add a visual indicator at the bottom of the screen
+        fill(255, 0, 0, 100);
+        rect(0, HEIGHT - 10, WIDTH, 10);
+        enemies.splice(i, 1);
+      }
+    }
+    
+    // Update and draw player bullets
+    for (let i = bullets.length - 1; i >= 0; i--) {
+      bullets[i].update();
+      bullets[i].draw();
+      
+      let bulletRemoved = false;
+      
+      // Check collision with enemies
+      for (let j = enemies.length - 1; j >= 0; j--) {
+        let hitDistance = enemies[j].type === 2 ? 25 : 10; // Larger hit area for boss
+        if (dist(bullets[i].x, bullets[i].y, enemies[j].x, enemies[j].y) < hitDistance) {
+          // Handle enemy hit
+          let enemyDestroyed = true;
+          
+          if (enemies[j].type === 2) {
+            // Boss takes multiple hits
+            enemyDestroyed = enemies[j].takeDamage();
+            
+            // Create hit effect even if not destroyed
+            for (let k = 0; k < 5; k++) {
+              particles.push(new Particle(
+                bullets[i].x, 
+                bullets[i].y, 
+                255, 100, 100, 
+                20
+              ));
+            }
+          }
+          
+          if (enemyDestroyed) {
+            // Calculate score based on enemy type
+            let pointValue = 0;
+            let explosionSize = 50;
+            let explosionColor = {r: 255, g: 100, b: 0};
+            
+            switch(enemies[j].type) {
+              case 0: // Basic ship
+                pointValue = 10;
+                break;
+              case 1: // Hunter ship
+                pointValue = 25;
+                explosionSize = 70;
+                explosionColor = {r: 255, g: 50, b: 0};
+                break;
+              case 2: // Boss ship
+                pointValue = 100;
+                explosionSize = 100;
+                explosionColor = {r: 200, g: 0, b: 255};
+                bossDefeated++;
+                
+                // Give temporary shield when boss is defeated for safety
+                shieldActive = true;
+                shieldTime = 120; // 2 seconds at 60fps
+                
+                // Spawn power-ups when boss is defeated
+                for (let k = 0; k < 3; k++) {
+                  powerUps.push(new PowerUp(enemies[j].x + random(-30, 30), enemies[j].y + random(-30, 30)));
+                }
+                
+                bossSpawned = false;
+                break;
+            }
+            
+            // Apply combo multiplier
+            let pointsScored = pointValue * comboMultiplier;
+            score += pointsScored;
+            
+            // Update combo - CRITICAL for tracking enemies destroyed
+            killStreak++;
+            console.log("Enemy destroyed! killStreak increased to:", killStreak);
+            
+            // Update finalGameStats immediately if it exists, so we don't lose the count
+            if (window.finalGameStats) {
+              window.finalGameStats.killStreak = killStreak;
+              console.log("Updated window.finalGameStats.killStreak to:", killStreak);
+            }
+            
+            comboMultiplier = min(floor(killStreak / 5) + 1, 5);
+            comboTimer = 180; // 3 seconds at 60fps
+            
+            // Create score popup
+            let scoreText = `+${pointsScored}`;
+            if (comboMultiplier > 1) {
+              scoreText += ` x${comboMultiplier}`;
+            }
+            
+            // Create explosion with appropriate size and color
+            explosions.push(new Explosion(enemies[j].x, enemies[j].y, explosionSize, explosionColor));
+            playExplosionSound();
+            
+            // Remove the enemy
+            enemies.splice(j, 1);
+            
+            // Ensure killStreak is correctly updated in finalGameStats if game is already over
+            if (gameState === "gameOver" && window.finalGameStats) {
+              window.finalGameStats.killStreak = killStreak;
+              console.log("Updated finalGameStats.killStreak after enemy destroyed:", window.finalGameStats.killStreak);
+            }
+          }
+          
+          // Remove the bullet
+          bullets.splice(i, 1);
+          bulletRemoved = true;
+          break;
+        }
+      }
+      
+      // Skip the rest of this iteration if the bullet was already removed
+      if (bulletRemoved) continue;
+      
+      // Remove bullets off-screen
+      if (bullets[i].isOffScreen()) {
+        bullets.splice(i, 1);
+      }
+    }
+    
+    // Update and draw enemy bullets
+    for (let i = enemyBullets.length - 1; i >= 0; i--) {
+      enemyBullets[i].update();
+      enemyBullets[i].draw();
+      
+      // Check collision with player
+      if (dist(enemyBullets[i].x, enemyBullets[i].y, player.x, player.y) < 10) {
+        // Check if shield is active - if so, don't reduce lives
+        if (shieldActive) {
+          // Just destroy the bullet without reducing lives
+          // Add shield hit effect
+          for (let j = 0; j < 5; j++) {
+            particles.push(new Particle(
+              enemyBullets[i].x, 
+              enemyBullets[i].y, 
+              0, 200, 255, // Blue shield color
+              20
+            ));
+          }
+          enemyBullets.splice(i, 1);
+        } else if (invincibilityFrames <= 0) { // Only take damage if not invincible
+          // No shield, reduce lives
+          lives--;
+          explosions.push(new Explosion(player.x, player.y));
+          playExplosionSound();
+          enemyBullets.splice(i, 1);
+          
+          // Set invincibility frames to prevent multiple hits
+          invincibilityFrames = 60; // 1 second invincibility
+          
+          if (lives <= 0 && gameState !== "gameOver") {
+            finalScore = score; // Save final score
+            gameState = "gameOver";
+            
+            // Capture final stats
+            window.finalGameStats = {
+              score: score,
+              level: level,
+              killStreak: killStreak
+            };
+          }
+        } else {
+          // Player is in invincibility frames but still destroy the bullet
+          enemyBullets.splice(i, 1);
+        }
+      }
+      
+      // Remove bullets off-screen
+      if (enemyBullets[i] && enemyBullets[i].isOffScreen()) {
+        enemyBullets.splice(i, 1);
+      }
+    }
+    
+    // Update and draw explosions
+    for (let i = explosions.length - 1; i >= 0; i--) {
+      explosions[i].update();
+      explosions[i].draw();
+      if (explosions[i].isFinished()) {
+        explosions.splice(i, 1);
+      }
+    }
+    
+    // Spawn enemies
+    if (frameCount % 60 === 0) {
+      enemies.push(new Enemy());
+    }
+    
+    // Display UI
+    textSize(20);
+    fill(255);
+    text(`Score: ${score}`, 10, 30);
+    text(`Lives: ${lives}`, 10, 60);
+    text(`Escaped: ${escapedEnemies}`, 10, 90);
+    text(`Level: ${level}`, 10, 120);
+    
+    // Display power-up status
+    let statusY = 150;
+    
+    // Display shield status if active
+    if (shieldActive) {
+      text(`Shield: ${Math.ceil(shieldTime / 60)}s`, 10, statusY);
+      statusY += 30;
+    }
+    
+    // Display rapid fire status if active
+    if (rapidFireActive) {
+      text(`Rapid Fire: ${Math.ceil(rapidFireTime / 60)}s`, 10, statusY);
+      statusY += 30;
+    }
+    
+    // Display triple shot status if active
+    if (tripleShot) {
+      text(`Triple Shot: ${Math.ceil(tripleShotTime / 60)}s`, 10, statusY);
+    }
+    
+    // Display game rules
+    textSize(12);
+    textAlign(RIGHT);
+    if (penalizeEscapedEnemies) {
+      text("Enemies that escape will cost you a life!", WIDTH - 10, 30);
+    } else {
+      text("Destroy enemies before they escape!", WIDTH - 10, 30);
+    }
+    textAlign(LEFT);
+    
+    // Level up based on score
+    if (score > 0 && score >= level * 100 && !bossSpawned) {
+      levelUp();
+    }
+    
+    // Update combo timer
+    if (comboTimer > 0) {
+      comboTimer--;
+      if (comboTimer === 0) {
+        killStreak = 0;
+        comboMultiplier = 1;
+      }
+    }
+    
+    // Display combo multiplier if active
+    if (comboMultiplier > 1) {
+      textSize(24);
+      fill(255, 255, 0);
+      text(`Combo x${comboMultiplier}`, WIDTH - 150, 30);
+    }
+    
+    // Spawn boss at certain intervals
+    if (level % 5 === 0 && !bossSpawned && frameCount % 300 === 0) {
+      spawnBoss();
+    }
   } else if (gameState === "gameOver") {
     drawGameOverScreen();
   } else if (gameState === "leaderboard") {
