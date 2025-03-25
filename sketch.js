@@ -552,14 +552,35 @@ function draw() {
             enemyDestroyed = enemies[j].takeDamage();
             
             // Create hit effect even if not destroyed
-            for (let k = 0; k < 5; k++) {
+            for (let k = 0; k < 10; k++) {
               particles.push(new Particle(
                 bullets[i].x, 
                 bullets[i].y, 
                 255, 100, 100, 
-                20
+                30
               ));
             }
+            
+            // Add a small explosion effect for boss hits
+            if (!enemyDestroyed) {
+              // Small explosion at the bullet impact point
+              explosions.push(new Explosion(bullets[i].x, bullets[i].y, 20, {r: 255, g: 100, b: 50}));
+            }
+          } else {
+            // Regular enemies are destroyed in one hit
+            
+            // But still add a bullet impact effect for regular enemies
+            for (let k = 0; k < 5; k++) {
+              particles.push(new Particle(
+                bullets[i].x, 
+                bullets[i].y, 
+                200, 150, 255,  // Different color for regular enemies
+                15
+              ));
+            }
+            
+            // Small impact flash
+            explosions.push(new Explosion(bullets[i].x, bullets[i].y, 10, {r: 200, g: 150, b: 255}));
           }
           
           if (enemyDestroyed) {
@@ -1363,18 +1384,18 @@ function playExplosionSound(size = 1, isEnemy = true) {
     let sizeVariation = size * 0.5;
     let randomPitch = random(0.9, 1.1);
     
-    // Set frequency first
-    if (size > 2) {
+    // Enhanced sound characteristics based on size
+    if (size < 0.7) {
+      // Small hit/impact sounds (when enemies are damaged but not destroyed)
+      soundToPlay.freq(random(200, 250) * randomPitch);
+      soundToPlay.amp(0.08);
+      setTimeout(() => soundToPlay.amp(0, 0.1), 100);
+    } else if (size > 2) {
+      // Large explosions (bosses, etc)
       soundToPlay.freq(random(60, 80) * randomPitch);
-    } else {
-      soundToPlay.freq((120 - size * 15) * randomPitch);
-    }
-    
-    // Then set amplitude - use more noticeable volumes
-    if (size > 2) {
       soundToPlay.amp(min(0.3, 0.15 + sizeVariation * 0.15));
       
-      // For big explosions, add a second explosion sound with delay
+      // For big explosions, add secondary explosion sounds with delay for more impact
       setTimeout(() => {
         if (explosionSound && typeof explosionSound.amp === 'function') {
           explosionSound.freq(random(100, 120));
@@ -1382,16 +1403,21 @@ function playExplosionSound(size = 1, isEnemy = true) {
           setTimeout(() => explosionSound.amp(0, 0.2), 150);
         }
       }, 100);
+      
+      // Add a third, lower frequency rumble for really big explosions
+      setTimeout(() => {
+        if (explosionSound && typeof explosionSound.amp === 'function') {
+          explosionSound.freq(random(40, 60));
+          explosionSound.amp(0.1);
+          setTimeout(() => explosionSound.amp(0, 0.3), 200);
+        }
+      }, 200);
     } else {
+      // Regular explosions (regular enemies)
+      soundToPlay.freq((120 - size * 15) * randomPitch);
       soundToPlay.amp(min(0.25, 0.1 + sizeVariation * 0.15));
+      setTimeout(() => soundToPlay.amp(0, 0.2), 200);
     }
-    
-    // Make sure we have a proper falloff
-    setTimeout(() => {
-      if (soundToPlay && typeof soundToPlay.amp === 'function') {
-        soundToPlay.amp(0, 0.3); // Fade out over 300ms
-      }
-    }, 200);
   } catch (e) {
     // Log error but don't disable all sound for small errors
     console.error("Explosion sound error:", e);
@@ -2085,6 +2111,22 @@ class Enemy {
   }
   
   takeDamage() {
+    // Play a hit sound even if the enemy isn't destroyed
+    if (this.health > 1) {
+      // For enemies that take multiple hits, play a smaller hit sound
+      playExplosionSound(0.5, true);
+      
+      // Create small hit effect particles
+      for (let i = 0; i < 5; i++) {
+        particles.push(new Particle(
+          this.x + random(-10, 10), 
+          this.y + random(-10, 10), 
+          255, 100, 100, 
+          15
+        ));
+      }
+    }
+    
     this.health--;
     return this.health <= 0;
   }
