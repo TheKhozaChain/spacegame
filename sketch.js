@@ -80,23 +80,6 @@ const HEIGHT = 600;
 // Add this near the top with other global variables
 let testSoundMessage = "";
 
-// Add these variables near the other global variables
-let isMobile = false;
-let touchControls = {
-  joystick: {
-    active: false,
-    startX: 0,
-    startY: 0,
-    currentX: 0,
-    currentY: 0,
-    touchId: null
-  },
-  fireButton: {
-    active: false,
-    touchId: null
-  }
-};
-
 // Function to initialize the stars for the background
 function initializeStars() {
   // Clear any existing stars
@@ -128,41 +111,6 @@ function setup() {
   
   // Initialize font size based on screen dimensions
   fontSizeBase = min(WIDTH, HEIGHT) / 25;
-  
-  // Detect mobile devices
-  isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
-            (window.matchMedia && window.matchMedia("(max-width: 768px)").matches);
-  
-  console.log("Mobile device detection:", isMobile ? "Mobile detected" : "Desktop detected");
-  
-  // Mobile optimizations
-  if (isMobile) {
-    // Apply mobile-specific settings
-    pixelDensity(1); // Lower pixel density for better performance
-    frameRate(40);   // Lower framerate for better performance
-    
-    // Prevent touchmove events from scrolling the page
-    document.body.addEventListener('touchmove', function(e) {
-      if (e.target.nodeName === 'CANVAS') {
-        e.preventDefault();
-      }
-    }, { passive: false });
-    
-    // Prevent pinch-to-zoom
-    document.addEventListener('gesturestart', function(e) {
-      e.preventDefault();
-    });
-    
-    // Apply 100% width styling to canvas for mobile
-    let canvasElement = document.querySelector('canvas');
-    if (canvasElement) {
-      canvasElement.style.width = '100%';
-      canvasElement.style.height = 'auto';
-    }
-    
-    // Create touch controls
-    createTouchControls();
-  }
   
   // Check if we're likely on a touch device
   touchInterface = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -531,12 +479,6 @@ function draw() {
     
     // Draw player and game objects
     player.update();
-    
-    // Check if player is shooting (from keyboard or touch controls)
-    if (player.isShooting && player.shootCooldown <= 0) {
-      player.shoot();
-    }
-    
     player.draw();
     
     // Update and draw enemies
@@ -918,25 +860,6 @@ function draw() {
   } else if (gameState === "leaderboard") {
     drawLeaderboardScreen();
   }
-  
-  // Draw Vibeverse multiplier if active
-  if (vibeVerseActive) {
-    textSize(30);
-    fill(200, 100, 255, 150 + sin(frameCount * 0.1) * 50);
-    textAlign(CENTER);
-    text(`VIBEVERSE MULTIPLIER: ${vibeVerseMultiplier}x`, WIDTH/2, 75);
-  }
-  
-  // Draw game controls
-  drawGameControls();
-  
-  // Draw touch controls for mobile devices
-  if (isMobile) {
-    drawTouchControls();
-  }
-  
-  // Screen flash effect for Vibeverse power-up
-  // ... existing code ...
 }
 
 function resetGame() {
@@ -1303,9 +1226,10 @@ function keyPressed() {
     return;
   }
   
-  // For shooting, we no longer call shoot() directly.
-  // We just need to set isShooting to true and let the update loop handle it
-  // This is already done in the player.update() method
+  if (gameState === "playing" && keyCode === 32) { // Spacebar during gameplay
+    player.shoot();
+    console.log("Player shooting! Bullet count:", bullets.length);
+  }
   
   // Toggle penalty for escaped enemies with 'P' key
   if (keyCode === 80) { // 'P' key
@@ -1603,19 +1527,6 @@ class Player {
     this.weaponLevel = 1;
     this.baseShootCooldown = 15; // Base cooldown for shooting
     
-    // Velocity vector for smoother mobile controls
-    this.velocity = {
-      x: 0,
-      y: 0
-    };
-    
-    // Thruster direction flags
-    this.thrusterLeft = false;
-    this.thrusterRight = false;
-    this.thrusterUp = false;
-    this.thrusterDown = false;
-    this.isShooting = false;
-    
     // Ship colors
     this.colors = {
       primary: {r: 0, g: 150, b: 255},     // Main blue
@@ -1630,96 +1541,35 @@ class Player {
   }
   
   update() {
-    // Handle keyboard movement if not on mobile
-    if (!isMobile) {
-      if (keyIsDown(LEFT_ARROW) || keyIsDown(65)) {  // Left Arrow or 'A'
-        this.velocity.x = -this.speed;
-        this.thrusterLeft = true;
-      } else if (keyIsDown(RIGHT_ARROW) || keyIsDown(68)) {  // Right Arrow or 'D'
-        this.velocity.x = this.speed;
-        this.thrusterRight = true;
-      } else {
-        this.velocity.x = 0;
-        this.thrusterLeft = false;
-        this.thrusterRight = false;
-      }
-
-      if (keyIsDown(UP_ARROW) || keyIsDown(87)) {  // Up Arrow or 'W'
-        this.velocity.y = -this.speed;
-        this.thrusterUp = true;
-      } else if (keyIsDown(DOWN_ARROW) || keyIsDown(83)) {  // Down Arrow or 'S'
-        this.velocity.y = this.speed;
-        this.thrusterDown = true;
-      } else {
-        this.velocity.y = 0;
-        this.thrusterUp = false;
-        this.thrusterDown = false;
-      }
-
-      // Player shooting with spacebar
-      if (keyIsDown(32)) {  // Spacebar
-        this.isShooting = true;
-      } else {
-        this.isShooting = false;
-      }
-    } 
-    // Handle touch controls for mobile
-    else if (isMobile && touchControls.joystick.active) {
-      // Calculate joystick movement
-      let joystickX = touchControls.joystick.currentX - touchControls.joystick.startX;
-      let joystickY = touchControls.joystick.currentY - touchControls.joystick.startY;
-      
-      // Normalize to range -1 to 1 with a 30px deadzone
-      const maxDistance = 100;
-      const deadzone = 30;
-      
-      // X-axis movement
-      if (abs(joystickX) > deadzone) {
-        // Map the joystick position to velocity, considering deadzone
-        let normalizedX = (abs(joystickX) - deadzone) / (maxDistance - deadzone);
-        normalizedX = min(1, normalizedX) * (joystickX > 0 ? 1 : -1);
-        
-        this.velocity.x = normalizedX * this.speed;
-        this.thrusterLeft = joystickX < 0;
-        this.thrusterRight = joystickX > 0;
-      } else {
-        this.velocity.x = 0;
-        this.thrusterLeft = false;
-        this.thrusterRight = false;
-      }
-      
-      // Y-axis movement
-      if (abs(joystickY) > deadzone) {
-        // Map the joystick position to velocity, considering deadzone
-        let normalizedY = (abs(joystickY) - deadzone) / (maxDistance - deadzone);
-        normalizedY = min(1, normalizedY) * (joystickY > 0 ? 1 : -1);
-        
-        this.velocity.y = normalizedY * this.speed;
-        this.thrusterUp = joystickY < 0;
-        this.thrusterDown = joystickY > 0;
-      } else {
-        this.velocity.y = 0;
-        this.thrusterUp = false;
-        this.thrusterDown = false;
-      }
-      
-      // Shooting is handled by the touchControls.fireButton state
-      this.isShooting = touchControls.fireButton.active;
-    } 
-    // No active controls, stop movement
-    else if (isMobile) {
-      // If no touch is active, stop movement
-      this.velocity.x = 0;
-      this.velocity.y = 0;
-      this.thrusterLeft = false;
-      this.thrusterRight = false;
-      this.thrusterUp = false;
-      this.thrusterDown = false;
+    // Movement controls
+    let isMoving = false;
+    
+    if (keyIsDown(LEFT_ARROW)) {
+      this.x -= this.speed;
+      isMoving = true;
+      // Add thruster particles on the right side
+      particles.push(new Particle(this.x + 10, this.y + 10, 
+                                 this.colors.thruster.r, 
+                                 this.colors.thruster.g, 
+                                 this.colors.thruster.b, 20));
     }
-
-    // Update position based on velocity
-    this.x += this.velocity.x;
-    this.y += this.velocity.y;
+    if (keyIsDown(RIGHT_ARROW)) {
+      this.x += this.speed;
+      isMoving = true;
+      // Add thruster particles on the left side
+      particles.push(new Particle(this.x - 10, this.y + 10, 
+                                 this.colors.thruster.r, 
+                                 this.colors.thruster.g, 
+                                 this.colors.thruster.b, 20));
+    }
+    if (keyIsDown(UP_ARROW)) {
+      this.y -= this.speed * 0.7;
+      isMoving = true;
+    }
+    if (keyIsDown(DOWN_ARROW)) {
+      this.y += this.speed * 0.7;
+      isMoving = true;
+    }
     
     // Constrain player to screen
     this.x = constrain(this.x, this.size, WIDTH - this.size);
@@ -1743,7 +1593,7 @@ class Player {
       ));
       
       // Side thrusters
-      if (this.thrusterLeft || this.thrusterRight || this.thrusterUp || this.thrusterDown) {
+      if (isMoving) {
         particles.push(new Particle(
           this.x - 15, 
           this.y + 10, 
@@ -1800,16 +1650,14 @@ class Player {
   }
   
   shoot() {
-    if (this.shootCooldown <= 0) {
-      // Adjust cooldown based on weapon level
-      let currentCooldown = this.baseShootCooldown - (this.weaponLevel * 2);
-      currentCooldown = max(currentCooldown, 5); // Minimum cooldown of 5
-      
-      // Play shoot sound using the function
-      playShootSound(this.weaponLevel > 2);
-      
-      // Different weapon patterns based on weapon level
-      if (powerupActive && powerupType === POWERUP_TYPES.SPREAD_SHOT) {
+    // Calculate current cooldown based on power-ups
+    let currentCooldown = rapidFireActive ? this.baseShootCooldown / 2 : this.baseShootCooldown;
+    
+    // FIXED: Ensure shooting is always enabled regardless of powerups
+    // The previous implementation might have had issues with powerups disabling shooting
+    if (this.shootCooldown === 0) {
+      // Different weapon patterns based on weapon level and power-ups
+      if (tripleShot) {
         // Triple shot pattern
         bullets.push(new Bullet(this.x, this.y - 10, -8, true));
         bullets.push(new Bullet(this.x - 10, this.y, -7, true, -1, -7));
@@ -1826,6 +1674,14 @@ class Player {
       }
       
       this.shootCooldown = currentCooldown;
+      
+      try {
+        shootSound.freq(440);
+        shootSound.amp(0.5, 0.1); // Ramp amplitude to 0.5 over 0.1 seconds
+        setTimeout(() => shootSound.amp(0, 0.1), 100); // Ramp back to 0 after 100ms
+      } catch (e) {
+        console.warn("Error playing shoot sound:", e);
+      }
     }
   }
   
@@ -3885,148 +3741,4 @@ function resetSoundSystem() {
   console.log("Sound system reset complete");
   testSoundMessage = "🔊 Sound system reset";
   setTimeout(() => { testSoundMessage = ""; }, 2000);
-}
-
-// Reset the sound system if it fails
-function resetSoundSystem() {
-  console.log("Attempting to reset sound system...");
-  // ... existing code ...
-}
-
-function createTouchControls() {
-  console.log("Setting up touch controls for mobile");
-  
-  // Touch started event
-  canvas.touchStarted(function(event) {
-    if (!event.touches) return;
-    
-    for (let i = 0; i < event.touches.length; i++) {
-      let touch = event.touches[i];
-      let touchX = touch.clientX;
-      let touchY = touch.clientY;
-      
-      // Convert touch coordinates to canvas coordinates
-      touchX = map(touchX, 0, windowWidth, 0, WIDTH);
-      touchY = map(touchY, 0, windowHeight, 0, HEIGHT);
-      
-      // Left side of screen - movement joystick
-      if (touchX < WIDTH / 2) {
-        touchControls.joystick.active = true;
-        touchControls.joystick.startX = touchX;
-        touchControls.joystick.startY = touchY;
-        touchControls.joystick.currentX = touchX;
-        touchControls.joystick.currentY = touchY;
-        touchControls.joystick.touchId = touch.identifier;
-      }
-      // Right side of screen - firing button
-      else {
-        touchControls.fireButton.active = true;
-        touchControls.fireButton.touchId = touch.identifier;
-        if (player && gameState === GAME_STATES.GAME) {
-          player.isShooting = true;
-        }
-      }
-    }
-    
-    // Prevent default to avoid unwanted browser behaviors
-    return false;
-  });
-  
-  // Touch moved event
-  canvas.touchMoved(function(event) {
-    if (!event.touches) return;
-    
-    // Update joystick position if active
-    if (touchControls.joystick.active) {
-      for (let i = 0; i < event.touches.length; i++) {
-        let touch = event.touches[i];
-        if (touch.identifier === touchControls.joystick.touchId) {
-          // Convert touch coordinates to canvas coordinates
-          let touchX = map(touch.clientX, 0, windowWidth, 0, WIDTH);
-          let touchY = map(touch.clientY, 0, windowHeight, 0, HEIGHT);
-          
-          touchControls.joystick.currentX = touchX;
-          touchControls.joystick.currentY = touchY;
-          break;
-        }
-      }
-    }
-    
-    // Prevent default to avoid unwanted browser behaviors
-    return false;
-  });
-  
-  // Touch ended event
-  canvas.touchEnded(function(event) {
-    // We need to check the changedTouches to find which touch ended
-    if (!event.changedTouches) return;
-    
-    for (let i = 0; i < event.changedTouches.length; i++) {
-      let touch = event.changedTouches[i];
-      
-      // Check if this was the joystick touch
-      if (touchControls.joystick.touchId === touch.identifier) {
-        touchControls.joystick.active = false;
-        touchControls.joystick.touchId = null;
-      }
-      
-      // Check if this was the fire button touch
-      if (touchControls.fireButton.touchId === touch.identifier) {
-        touchControls.fireButton.active = false;
-        touchControls.fireButton.touchId = null;
-        if (player && gameState === GAME_STATES.GAME) {
-          player.isShooting = false;
-        }
-      }
-    }
-    
-    // Prevent default to avoid unwanted browser behaviors
-    return false;
-  });
-}
-
-// Function to draw mobile touch controls
-function drawTouchControls() {
-  if (!isMobile || gameState !== "playing") return;
-  
-  // Draw joystick base
-  noStroke();
-  fill(255, 255, 255, 50);
-  ellipse(100, HEIGHT - 100, 120, 120);
-  
-  // Draw joystick handle
-  if (touchControls.joystick.active) {
-    // Calculate joystick position (constrained to joystick radius)
-    let joystickX = touchControls.joystick.currentX;
-    let joystickY = touchControls.joystick.currentY;
-    
-    // Draw joystick direction line
-    stroke(255, 255, 255, 100);
-    strokeWeight(3);
-    line(touchControls.joystick.startX, touchControls.joystick.startY, joystickX, joystickY);
-    
-    // Draw joystick handle
-    noStroke();
-    fill(0, 150, 255, 200);
-    ellipse(joystickX, joystickY, 50, 50);
-  } else {
-    // Draw static joystick when not in use
-    fill(0, 150, 255, 120);
-    ellipse(100, HEIGHT - 100, 50, 50);
-    
-    // Draw directional indicators
-    textSize(12);
-    fill(255, 255, 255, 150);
-    text("MOVE", 100, HEIGHT - 100);
-  }
-  
-  // Draw fire button
-  fill(255, 50, 50, touchControls.fireButton.active ? 200 : 100);
-  ellipse(WIDTH - 100, HEIGHT - 100, 100, 100);
-  
-  // Fire button label
-  fill(255, 255, 255, 200);
-  textSize(18);
-  textAlign(CENTER, CENTER);
-  text("FIRE", WIDTH - 100, HEIGHT - 100);
 }
