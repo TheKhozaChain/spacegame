@@ -77,6 +77,9 @@ let inputMessage;
 const WIDTH = 800;
 const HEIGHT = 600;
 
+// Add this near the top with other global variables
+let testSoundMessage = "";
+
 // Function to initialize the stars for the background
 function initializeStars() {
   // Clear any existing stars
@@ -175,6 +178,28 @@ function setup() {
     // Mark sound as successfully initialized
     soundInitialized = true;
     console.log("Sound initialized successfully");
+    
+    // In the try block where sound is initialized, add this at the beginning:
+    console.log("Browser user agent:", navigator.userAgent);
+    console.log("p5.js version:", p5.prototype.VERSION);
+    console.log("AudioContext state:", typeof window.AudioContext !== 'undefined' 
+      ? (new window.AudioContext()).state 
+      : "AudioContext not available");
+      
+    // Force audio context to resume (needed for some browsers)
+    if (typeof getAudioContext === 'function') {
+      let audioCtx = getAudioContext();
+      if (audioCtx && audioCtx.state !== 'running') {
+        console.log("Attempting to resume audio context...");
+        audioCtx.resume().then(() => {
+          console.log("AudioContext resumed successfully, state:", audioCtx.state);
+        }).catch(err => {
+          console.error("Failed to resume AudioContext:", err);
+        });
+      } else {
+        console.log("AudioContext state:", audioCtx ? audioCtx.state : "not available");
+      }
+    }
   } catch (e) {
     // If anything goes wrong, disable sound completely
     console.warn("Sound initialization failed, disabling sound:", e);
@@ -821,6 +846,15 @@ function draw() {
       fill(255, 255, 255, screenFlash * 100);
       rect(0, 0, width, height);
     }
+    
+    // Display test sound message if present
+    if (testSoundMessage) {
+      textSize(24);
+      fill(255, 255, 0);
+      textAlign(CENTER);
+      text(testSoundMessage, WIDTH/2, HEIGHT - 50);
+      textAlign(LEFT);
+    }
   } else if (gameState === "gameOver") {
     drawGameOverScreen();
   } else if (gameState === "leaderboard") {
@@ -848,7 +882,7 @@ function resetGame() {
   enemyBullets = [];
   explosions = [];
   particles = [];
-  powerups = [];
+  powerUps = [];
   
   // Reset game state
   score = 0;
@@ -1211,6 +1245,16 @@ function keyPressed() {
   // Back to menu from leaderboard with ESC key
   if (keyCode === 27 && gameState === "leaderboard") { // ESC key
     gameState = "title";
+  }
+  
+  if (keyCode === 83) { // 'S' key
+    testSound();
+    return false; // prevent default behavior
+  }
+  
+  if (keyCode === 82) { // 'R' key
+    resetSoundSystem();
+    return false; // prevent default behavior
   }
 }
 
@@ -3580,4 +3624,102 @@ function drawGameControls() {
   text("SPACE", 67, 96);
   
   pop();
+}
+
+// Add this function near the playExplosionSound function
+function testSound() {
+  console.log("Sound test initiated");
+  
+  // Reset the sound system first
+  resetSoundSystem();
+  
+  // First, force sound system to initialize by requiring user interaction
+  if (typeof p5 !== 'undefined' && p5.Sound && typeof p5.Sound.userStartAudio === 'function') {
+    p5.Sound.userStartAudio().then(() => {
+      console.log("User audio started successfully");
+    }).catch(err => {
+      console.error("Failed to start user audio:", err);
+    });
+  } else {
+    console.log("p5.Sound.userStartAudio not available, trying alternative method");
+  }
+  
+  // Force sound to be enabled
+  soundEnabled = true;
+  
+  // Create a test sound with more obvious settings
+  try {
+    // Use the existing explosion sound with higher volume
+    if (explosionSound && typeof explosionSound.amp === 'function') {
+      console.log("Playing test explosion sound...");
+      explosionSound.freq(200); // Higher frequency - more noticeable
+      explosionSound.amp(0.5);  // Higher volume
+      
+      // Add fallback to create a clear sound
+      setTimeout(() => {
+        explosionSound.amp(0, 0.5); // Fade out
+        console.log("Test sound complete");
+      }, 1000);
+      
+      // Display feedback on screen
+      testSoundMessage = "🔊 Testing sound...";
+      setTimeout(() => { testSoundMessage = ""; }, 2000);
+    } else {
+      console.error("Explosion sound not properly initialized");
+    }
+  } catch (e) {
+    console.error("Error playing test sound:", e);
+  }
+}
+
+// Add this function near testSound
+function resetSoundSystem() {
+  console.log("Resetting sound system...");
+  
+  // First, ensure AudioContext is running
+  if (typeof getAudioContext === 'function') {
+    const audioCtx = getAudioContext();
+    if (audioCtx) {
+      audioCtx.resume().then(() => {
+        console.log("AudioContext resumed during reset, state:", audioCtx.state);
+      });
+    }
+  }
+  
+  // Enable sound
+  soundEnabled = true;
+  
+  // Force-unmute all oscillators by briefly playing them at a very low volume
+  // This can help overcome browser audio policies that mute sounds until interaction
+  const oscillators = [
+    shootSound, explosionSound, backgroundMusic, 
+    window.musicLayerHigh, powerUpSound, bossExplosionSound,
+    levelUpSound, enemyHitSound
+  ];
+  
+  oscillators.forEach((osc, index) => {
+    if (osc && typeof osc.amp === 'function' && typeof osc.freq === 'function') {
+      try {
+        // First set a very low volume
+        osc.amp(0.01);
+        
+        // Use different frequencies so they don't interfere with each other
+        const baseFreq = 100 + (index * 50);
+        osc.freq(baseFreq);
+        
+        // After a short delay, silence it again
+        setTimeout(() => {
+          if (osc && typeof osc.amp === 'function') {
+            osc.amp(0);
+          }
+        }, 50 + (index * 10));
+      } catch (e) {
+        console.warn(`Failed to reset oscillator ${index}:`, e);
+      }
+    }
+  });
+  
+  console.log("Sound system reset complete");
+  testSoundMessage = "🔊 Sound system reset";
+  setTimeout(() => { testSoundMessage = ""; }, 2000);
 }
