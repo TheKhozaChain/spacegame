@@ -318,13 +318,13 @@ function updateDynamicMusic() {
     if (!backgroundMusic || typeof backgroundMusic.amp !== 'function') return;
     
     // Adjust base music layer with more audible volumes
-    let baseVolume = min(0.25, 0.1 + (musicIntensity * 0.15));
+    let baseVolume = min(0.1, 0.05 + (musicIntensity * 0.05)); // Reduced from 0.25/0.1+0.15
     backgroundMusic.amp(baseVolume); 
     backgroundMusic.freq(map(musicIntensity, 0, 1, 80, 150)); // Higher pitch with intensity
     
     // If we have a high intensity layer, control it separately
     if (window.musicLayerHigh && typeof window.musicLayerHigh.amp === 'function') {
-      let highLayerVolume = min(0.2, musicIntensity * 0.2);
+      let highLayerVolume = min(0.08, musicIntensity * 0.08); // Reduced from 0.2/0.2
       window.musicLayerHigh.amp(highLayerVolume); // Fade in the intense layer based on gameplay
     }
   } catch (e) {
@@ -356,11 +356,11 @@ function playShootSound(weaponLevel = 1, isPowerShot = false) {
     // Power shots sound more impactful
     if (isPowerShot) {
       finalFreq *= 0.8; // Deeper sound for power shots
-      shootSound.amp(0.15); // Slightly increased from 0.1
+      shootSound.amp(0.08); // Reduced from 0.15
     } else {
       // Regular shots vary by weapon level
-      let ampLevel = 0.1 + (weaponLevel * 0.02); // Increased from 0.05
-      shootSound.amp(min(0.2, ampLevel)); // Increased from 0.15
+      let ampLevel = 0.05 + (weaponLevel * 0.01); // Reduced from 0.1+0.02
+      shootSound.amp(min(0.08, ampLevel)); // Reduced from 0.2
     }
     
     // Rapid falloff - essential for hearing the sound
@@ -1432,35 +1432,54 @@ function playExplosionSound(size = 1, isEnemy = true) {
     if (size < 0.7) {
       // Small hit/impact sounds (when enemies are damaged but not destroyed)
       soundToPlay.freq(random(200, 250) * randomPitch);
-      soundToPlay.amp(0.08);
+      soundToPlay.amp(0.12); // Increased from 0.08
       setTimeout(() => soundToPlay.amp(0, 0.1), 100);
     } else if (size > 2) {
       // Large explosions (bosses, etc)
-      soundToPlay.freq(random(60, 80) * randomPitch);
-      soundToPlay.amp(min(0.3, 0.15 + sizeVariation * 0.15));
+      soundToPlay.freq(random(40, 60) * randomPitch); // Lower frequency for more dramatic boom
+      soundToPlay.amp(min(0.5, 0.25 + sizeVariation * 0.25)); // Increased from 0.3/0.15+0.15
       
       // For big explosions, add secondary explosion sounds with delay for more impact
       setTimeout(() => {
         if (explosionSound && typeof explosionSound.amp === 'function') {
-          explosionSound.freq(random(100, 120));
-          explosionSound.amp(0.15);
-          setTimeout(() => explosionSound.amp(0, 0.2), 150);
+          explosionSound.freq(random(60, 90)); // Lower frequency than before
+          explosionSound.amp(0.30); // Increased from 0.15
+          setTimeout(() => explosionSound.amp(0, 0.3), 250); // Longer duration
         }
       }, 100);
       
       // Add a third, lower frequency rumble for really big explosions
       setTimeout(() => {
         if (explosionSound && typeof explosionSound.amp === 'function') {
-          explosionSound.freq(random(40, 60));
-          explosionSound.amp(0.1);
-          setTimeout(() => explosionSound.amp(0, 0.3), 200);
+          explosionSound.freq(random(30, 45)); // Even lower frequency for dramatic effect
+          explosionSound.amp(0.25); // Increased from 0.1
+          setTimeout(() => explosionSound.amp(0, 0.4), 350); // Longer fade-out
         }
       }, 200);
+      
+      // Add a final echo effect for massive explosions
+      setTimeout(() => {
+        if (explosionSound && typeof explosionSound.amp === 'function') {
+          explosionSound.freq(random(20, 35));
+          explosionSound.amp(0.15);
+          setTimeout(() => explosionSound.amp(0, 0.5), 400);
+        }
+      }, 450);
     } else {
       // Regular explosions (regular enemies)
-      soundToPlay.freq((120 - size * 15) * randomPitch);
-      soundToPlay.amp(min(0.25, 0.1 + sizeVariation * 0.15));
-      setTimeout(() => soundToPlay.amp(0, 0.2), 200);
+      soundToPlay.freq((100 - size * 20) * randomPitch); // Lower base frequency
+      soundToPlay.amp(min(0.35, 0.15 + sizeVariation * 0.20)); // Increased from 0.25/0.1+0.15
+      
+      // Add a secondary boom for regular explosions too
+      setTimeout(() => {
+        if (explosionSound && typeof explosionSound.amp === 'function') {
+          explosionSound.freq(random(80, 100));
+          explosionSound.amp(0.15);
+          setTimeout(() => explosionSound.amp(0, 0.2), 150);
+        }
+      }, 60);
+      
+      setTimeout(() => soundToPlay.amp(0, 0.3), 250); // Longer duration
     }
   } catch (e) {
     // Log error but don't disable all sound for small errors
