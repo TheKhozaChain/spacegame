@@ -243,3 +243,89 @@ try {
 ## License
 
 This project is open source and available under the MIT License.
+
+## Manual Testing
+
+This section provides manual test cases for verifying key features.
+
+### 1. Mute/Unmute Functionality
+
+**Test Case 1.1: Toggle Mute/Unmute Visual Indicator**
+*   **Steps:**
+    1.  Start the game.
+    2.  Observe the sound status indicator in the top-right corner (should initially display "Sound ON (M)").
+    3.  Press the 'M' key.
+*   **Expected Result:**
+    *   The sound status indicator should change to "Muted (M)".
+    *   Pressing 'M' again should toggle the indicator back to "Sound ON (M)".
+
+**Test Case 1.2: Verify No Sound When Muted**
+*   **Steps:**
+    1.  Start the game.
+    2.  Press 'M' to mute the game. The indicator should show "Muted (M)".
+    3.  Perform actions that normally produce sound:
+        *   Move the ship and press SPACEBAR to shoot.
+        *   Allow enemies to appear and shoot them (triggering explosions).
+        *   Collect a power-up (especially the VIBE power-up if possible, or any other that might have a sound).
+        *   Try to gain enough score to level up (score is `level * 100`).
+    4.  Observe the background music.
+*   **Expected Result:**
+    *   No sounds for shooting, explosions, power-up collection (if implemented), or level-up should be audible.
+    *   Background music should be inaudible.
+
+**Test Case 1.3: Verify Sound When Unmuted**
+*   **Steps:**
+    1.  Start the game.
+    2.  If muted, press 'M' to unmute. The indicator should show "Sound ON (M)".
+    3.  Perform actions that normally produce sound:
+        *   Move the ship and press SPACEBAR to shoot.
+        *   Allow enemies to appear and shoot them (triggering explosions).
+        *   Collect a power-up.
+        *   Try to gain enough score to level up.
+    4.  Observe the background music.
+*   **Expected Result:**
+    *   Sounds for shooting, explosions, power-up collection (if implemented for that power-up type), and level-up should be audible.
+    *   Background music should be audible and playing according to game intensity.
+
+**Test Case 1.4: Background Music Resumes Correctly**
+*   **Steps:**
+    1.  Start the game and allow background music to start playing.
+    2.  Press 'M' to mute the game.
+    3.  Wait for a few seconds.
+    4.  Press 'M' again to unmute the game.
+*   **Expected Result:**
+    *   Background music should stop when muted.
+    *   Background music should resume playing (potentially at a volume based on current game intensity) when unmuted.
+
+### 2. Game Controls Display Panel
+
+**Test Case 2.1: Panel Visibility**
+*   **Steps:**
+    1.  Start the game by pressing SPACEBAR on the title screen to enter the "playing" state.
+    2.  Look to the left side of the game screen, below the Score/Lives/Level indicators.
+*   **Expected Result:**
+    *   The game controls display panel should be visible.
+
+**Test Case 2.2: Panel Transparency**
+*   **Steps:**
+    1.  Observe the game controls panel during gameplay.
+    2.  Ensure game elements (like stars, player ship if it moves close, particles) are visible *through* the panel.
+*   **Expected Result:**
+    *   The panel should be significantly transparent, allowing underlying game elements to be seen, making it less obtrusive than a solid panel.
+
+**Test Case 2.3: Panel Compactness and Visual Clarity**
+*   **Steps:**
+    1.  Observe the game controls panel.
+*   **Expected Result:**
+    *   The panel should appear relatively small and not take up excessive screen space.
+    *   The layout of controls (D-pad for movement, "SPACE" for shoot) should be clear, organized, and easy to understand at a glance.
+    *   Text and icons should be legible.
+
+**Test Case 2.4: Accuracy of Listed Controls**
+*   **Steps:**
+    1.  Review the controls listed on the panel:
+        *   "Move:" with arrow key D-pad representation.
+        *   "Shoot:" with "SPACE" bar representation.
+    2.  Attempt to use these controls during gameplay.
+*   **Expected Result:**
+    *   The listed controls on the panel should accurately reflect the actual keys used to control the game (Arrow keys for movement, Spacebar for shooting).
