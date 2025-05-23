@@ -17,6 +17,7 @@ let portalParticles = [];
 let showReturnPortal = false;
 
 // Sound variables
+let isMuted = false; // Added for mute/unmute feature
 let backgroundMusic;
 let powerUpSound;
 let shootSound;
@@ -287,8 +288,19 @@ function setup() {
 
 // Function to update the dynamic soundtrack based on gameplay intensity
 function updateDynamicMusic() {
-  // Skip completely if sound is disabled
-  if (!soundEnabled || !soundInitialized) return;
+  // Skip completely if sound is disabled, not initialized, or game is muted
+  if (!soundEnabled || !soundInitialized || isMuted) {
+    // Ensure music is off if muted
+    if (isMuted) {
+      if (backgroundMusic && typeof backgroundMusic.amp === 'function') {
+        backgroundMusic.amp(0);
+      }
+      if (window.musicLayerHigh && typeof window.musicLayerHigh.amp === 'function') {
+        window.musicLayerHigh.amp(0);
+      }
+    }
+    return;
+  }
   
   // Update only every 500ms to avoid too frequent changes
   if (millis() - lastMusicUpdate < 500) return;
@@ -335,8 +347,8 @@ function updateDynamicMusic() {
 
 // Function to play the shooting sound
 function playShootSound(weaponLevel = 1, isPowerShot = false) {
-  // Skip if sound is disabled
-  if (!soundEnabled || !soundInitialized) return;
+  // Skip if sound is disabled, not initialized, or muted
+  if (!soundEnabled || !soundInitialized || isMuted) return;
   
   try {
     // Skip if sound is disabled or not available
@@ -860,6 +872,18 @@ function draw() {
   } else if (gameState === "leaderboard") {
     drawLeaderboardScreen();
   }
+
+  // Display Mute status
+  push();
+  textSize(16);
+  fill(255, 255, 255, 150); // Semi-transparent white
+  textAlign(RIGHT, TOP);
+  if (isMuted) {
+    text("Muted (M)", WIDTH - 10, 10);
+  } else {
+    text("Sound ON (M)", WIDTH - 10, 10);
+  }
+  pop();
 }
 
 function resetGame() {
@@ -1256,6 +1280,30 @@ function keyPressed() {
     resetSoundSystem();
     return false; // prevent default behavior
   }
+
+  // Mute/unmute with 'M' key
+  if (keyCode === 77) { // 'M' key
+    isMuted = !isMuted;
+    soundEnabled = !isMuted; // Link soundEnabled to isMuted
+
+    if (isMuted) {
+      // Silence all sounds immediately
+      if (backgroundMusic && typeof backgroundMusic.amp === 'function') backgroundMusic.amp(0);
+      if (window.musicLayerHigh && typeof window.musicLayerHigh.amp === 'function') window.musicLayerHigh.amp(0);
+      // Stop other sounds that might be looping or playing
+      if (shootSound && typeof shootSound.amp === 'function') shootSound.amp(0);
+      if (explosionSound && typeof explosionSound.amp === 'function') explosionSound.amp(0);
+      if (powerUpSound && typeof powerUpSound.amp === 'function') powerUpSound.amp(0);
+      if (bossExplosionSound && typeof bossExplosionSound.amp === 'function') bossExplosionSound.amp(0);
+      if (levelUpSound && typeof levelUpSound.amp === 'function') levelUpSound.amp(0);
+      if (enemyHitSound && typeof enemyHitSound.amp === 'function') enemyHitSound.amp(0);
+      console.log("Sound Muted");
+    } else {
+      // Restore background music volume (updateDynamicMusic will handle this based on intensity)
+      updateDynamicMusic(); // Call to potentially restore music if game state allows
+      console.log("Sound Unmuted");
+    }
+  }
 }
 
 function mousePressed() {
@@ -1413,8 +1461,8 @@ function restartGame() {
 }
 
 function playExplosionSound(size = 1, isEnemy = true) {
-  // Skip if sound is disabled
-  if (!soundEnabled || !soundInitialized) return;
+  // Skip if sound is disabled, not initialized, or muted
+  if (!soundEnabled || !soundInitialized || isMuted) return;
   
   try {
     // Choose the appropriate sound based on explosion type
@@ -1489,6 +1537,17 @@ function playExplosionSound(size = 1, isEnemy = true) {
 
 function levelUp() {
   level++;
+
+  // Play level up sound only if not muted
+  if (!isMuted && soundEnabled && soundInitialized && levelUpSound && typeof levelUpSound.amp === 'function') {
+    levelUpSound.freq(random(600, 700)); // Add some pitch variation
+    levelUpSound.amp(0.3, 0.05); // Quick attack
+    setTimeout(() => {
+      if (levelUpSound && typeof levelUpSound.amp === 'function') {
+        levelUpSound.amp(0, 0.5); // Longer decay
+      }
+    }, 500);
+  }
   
   // Create level-up effect
   for (let i = 0; i < 50; i++) {
@@ -1675,12 +1734,15 @@ class Player {
       
       this.shootCooldown = currentCooldown;
       
-      try {
-        shootSound.freq(440);
-        shootSound.amp(0.5, 0.1); // Ramp amplitude to 0.5 over 0.1 seconds
-        setTimeout(() => shootSound.amp(0, 0.1), 100); // Ramp back to 0 after 100ms
-      } catch (e) {
-        console.warn("Error playing shoot sound:", e);
+      // Play shoot sound only if not muted
+      if (!isMuted && soundEnabled && soundInitialized) {
+        try {
+          shootSound.freq(440);
+          shootSound.amp(0.5, 0.1); // Ramp amplitude to 0.5 over 0.1 seconds
+          setTimeout(() => shootSound.amp(0, 0.1), 100); // Ramp back to 0 after 100ms
+        } catch (e) {
+          console.warn("Error playing shoot sound:", e);
+        }
       }
     }
   }
@@ -2658,7 +2720,7 @@ class PowerUp {
       screenFlash = 1.0; // Will fade out in the draw loop
       
       // Play special sound
-      if (soundEnabled && soundInitialized) {
+      if (soundEnabled && soundInitialized && !isMuted) {
         try {
           // Special vibeverse sound
           if (powerUpSound && typeof powerUpSound.amp === 'function') {
@@ -3550,97 +3612,94 @@ function drawGameControls() {
   push();
   // Position on the left side of the screen below powerup timers
   // (powerup timers end around y=240 when all active)
-  translate(10, 280);
+  translate(10, 280); // Keep current y position, adjust if necessary after testing
   
-  // Extremely transparent background for better readability while being minimally visible
-  fill(0, 0, 20, 50);  // Changed from 150 to 50 for much higher transparency
-  stroke(100, 150, 255, 30); // Changed from 80 to 30 for more transparency
+  // Background: More transparent and slightly smaller
+  fill(0, 0, 20, 30); // Increased transparency (alpha from 50 to 30)
+  stroke(100, 150, 255, 20); // Border even more transparent (alpha from 30 to 20)
   strokeWeight(1);
-  rect(0, 0, 100, 110, 8); // Smaller panel
-  
-  // Title
-  fill(255, 255, 255, 180); // Made text semi-transparent too
+  rect(0, 0, 90, 100, 5); // Reduced panel size (width 100->90, height 110->100), smaller corner radius
+
+  // Title: "CONTROLS" - smaller and centered
+  fill(255, 255, 255, 150); // Slightly more transparent text
   noStroke();
-  textSize(11);
+  textSize(10); // Reduced text size
   textAlign(CENTER);
-  text("CONTROLS", 50, 15);
-  
-  // Arrow keys for movement
+  text("CONTROLS", 45, 12); // Adjusted X for new width, Y for top padding
+
+  // "Move:" text - smaller and positioned
   textAlign(LEFT);
-  textSize(10);
-  text("Move:", 10, 35);
-  
-  // Draw arrow keys - smaller size and properly aligned
-  strokeWeight(1);
-  stroke(200, 200, 200, 100); // Made strokes semi-transparent
-  
-  // Create a more organized d-pad layout
-  // Center position for the d-pad
-  let dpadCenterX = 50;
-  let dpadCenterY = 55;
-  let buttonSize = 18;
-  let buttonSpacing = buttonSize + 2;
-  
+  textSize(9); // Reduced text size
+  text("Move:", 5, 28); // Adjusted Y position
+
+  // D-pad for movement: Smaller and more compact
+  let dpadCenterX = 45; // Centered in the new panel width
+  let dpadTopY = 40;    // Positioned below "Move:" text
+  let buttonSize = 15;  // Reduced button size
+  let buttonGap = 1;    // Gap between buttons
+
   // Up arrow
-  fill(40, 40, 60, 100);
-  rect(dpadCenterX - buttonSize/2, dpadCenterY - buttonSpacing, buttonSize, buttonSize, 2);
-  fill(200, 200, 200, 180);
+  fill(40, 40, 60, 80); // More transparent button fill
+  stroke(200, 200, 200, 80); // More transparent button stroke
+  rect(dpadCenterX - buttonSize / 2, dpadTopY, buttonSize, buttonSize, 2);
+  fill(200, 200, 200, 160); // Arrow symbol slightly more transparent
   noStroke();
-  triangle(
-    dpadCenterX, dpadCenterY - buttonSpacing + 4,
-    dpadCenterX - 4, dpadCenterY - buttonSpacing + buttonSize - 4,
-    dpadCenterX + 4, dpadCenterY - buttonSpacing + buttonSize - 4
+  triangle( // Adjusted triangle points for smaller button
+    dpadCenterX, dpadTopY + 3,
+    dpadCenterX - 4, dpadTopY + buttonSize - 3,
+    dpadCenterX + 4, dpadTopY + buttonSize - 3
   );
-  
+
   // Left arrow
-  fill(40, 40, 60, 100);
-  stroke(200, 200, 200, 100);
-  rect(dpadCenterX - buttonSpacing, dpadCenterY, buttonSize, buttonSize, 2);
-  fill(200, 200, 200, 180);
+  fill(40, 40, 60, 80);
+  stroke(200, 200, 200, 80);
+  rect(dpadCenterX - buttonSize / 2 - buttonSize - buttonGap, dpadTopY + buttonSize + buttonGap, buttonSize, buttonSize, 2);
+  fill(200, 200, 200, 160);
   noStroke();
-  triangle(
-    dpadCenterX - buttonSpacing + 4, dpadCenterY + buttonSize/2,
-    dpadCenterX - buttonSpacing + buttonSize - 4, dpadCenterY + 4,
-    dpadCenterX - buttonSpacing + buttonSize - 4, dpadCenterY + buttonSize - 4
+  triangle( // Adjusted triangle points
+    dpadCenterX - buttonSize / 2 - buttonSize - buttonGap + 3, dpadTopY + buttonSize + buttonGap + buttonSize / 2,
+    dpadCenterX - buttonSize / 2 - buttonGap + 3, dpadTopY + buttonSize + buttonGap + 3,
+    dpadCenterX - buttonSize / 2 - buttonGap + 3, dpadTopY + buttonSize + buttonGap + buttonSize - 3
   );
-  
+
   // Down arrow
-  fill(40, 40, 60, 100);
-  stroke(200, 200, 200, 100);
-  rect(dpadCenterX - buttonSize/2, dpadCenterY + buttonSpacing - buttonSize, buttonSize, buttonSize, 2);
-  fill(200, 200, 200, 180);
+  fill(40, 40, 60, 80);
+  stroke(200, 200, 200, 80);
+  rect(dpadCenterX - buttonSize / 2, dpadTopY + buttonSize + buttonGap, buttonSize, buttonSize, 2);
+  fill(200, 200, 200, 160);
   noStroke();
-  triangle(
-    dpadCenterX, dpadCenterY + buttonSpacing - 4,
-    dpadCenterX - 4, dpadCenterY + buttonSpacing - buttonSize + 4,
-    dpadCenterX + 4, dpadCenterY + buttonSpacing - buttonSize + 4
+  triangle( // Adjusted triangle points
+    dpadCenterX, dpadTopY + buttonSize + buttonGap + buttonSize - 3,
+    dpadCenterX - 4, dpadTopY + buttonSize + buttonGap + 3,
+    dpadCenterX + 4, dpadTopY + buttonSize + buttonGap + 3
   );
-  
+
   // Right arrow
-  fill(40, 40, 60, 100);
-  stroke(200, 200, 200, 100);
-  rect(dpadCenterX + buttonSpacing - buttonSize, dpadCenterY, buttonSize, buttonSize, 2);
-  fill(200, 200, 200, 180);
+  fill(40, 40, 60, 80);
+  stroke(200, 200, 200, 80);
+  rect(dpadCenterX + buttonSize / 2 + buttonGap, dpadTopY + buttonSize + buttonGap, buttonSize, buttonSize, 2);
+  fill(200, 200, 200, 160);
   noStroke();
-  triangle(
-    dpadCenterX + buttonSpacing - 4, dpadCenterY + buttonSize/2,
-    dpadCenterX + buttonSpacing - buttonSize + 4, dpadCenterY + 4,
-    dpadCenterX + buttonSpacing - buttonSize + 4, dpadCenterY + buttonSize - 4
+  triangle( // Adjusted triangle points
+    dpadCenterX + buttonSize / 2 + buttonGap + buttonSize - 3, dpadTopY + buttonSize + buttonGap + buttonSize/2,
+    dpadCenterX + buttonSize / 2 + buttonGap + 3, dpadTopY + buttonSize + buttonGap + 3,
+    dpadCenterX + buttonSize / 2 + buttonGap + 3, dpadTopY + buttonSize + buttonGap + buttonSize - 3
   );
   
-  // Spacebar for shooting
+  // "Shoot:" text - smaller and positioned
   textAlign(LEFT);
-  fill(255, 255, 255, 180);
-  text("Shoot:", 10, 95);
-  
-  fill(40, 40, 60, 100);
-  stroke(200, 200, 200, 100);
-  rect(45, 85, 45, 16, 2);
-  fill(200, 200, 200, 180);
+  fill(255, 255, 255, 150);
+  text("Shoot:", 5, dpadTopY + buttonSize * 2 + buttonGap * 2 + 12); // Positioned below D-pad
+
+  // Spacebar representation - smaller
+  fill(40, 40, 60, 80);
+  stroke(200, 200, 200, 80);
+  rect(30, dpadTopY + buttonSize * 2 + buttonGap * 2 + 2 , 55, 14, 2); // Centered and smaller
+  fill(200, 200, 200, 160);
   noStroke();
-  textSize(8);
+  textSize(7); // Reduced text size
   textAlign(CENTER);
-  text("SPACE", 67, 96);
+  text("SPACE", 57, dpadTopY + buttonSize * 2 + buttonGap*2 + 11); // Adjusted Y
   
   pop();
 }
