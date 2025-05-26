@@ -284,8 +284,11 @@ This section provides manual test cases for verifying key features.
         *   Try to gain enough score to level up.
     4.  Observe the background music.
 *   **Expected Result:**
-    *   Sounds for shooting, explosions, power-up collection (if implemented for that power-up type), and level-up should be audible.
-    *   Background music should be audible and playing according to game intensity.
+    *   **Shooting:** Should be a clean, sharp laser 'zap' or 'pew' sound, with a quick pitch sweep.
+    *   **Explosions:** Should be a compact 'thump' or 'whump' using triangle waves with a downward pitch sweep, layered with a brief sci-fi crackle/sizzle from filtered noise. Boss explosions should sound deeper, louder, and slightly longer.
+    *   **Power-ups:** Should be distinct, short, clean chimes or synthesized blips, unique to each power-up type (e.g., rising tone for weapon upgrade, steady tone for shield, two-note chime for extra life, high-pitched blips for rapid fire/triple shot, arpeggiated sound for VIBE).
+    *   **Level-up:** Should be a clear, potentially slightly varied chime.
+    *   **Background Music:** Should be atmospheric, smoother, and less harsh, using triangle waves, with two layers (base and a perfect fifth above) playing in harmony. It should still change dynamically with game intensity.
 
 **Test Case 1.4: Background Music Resumes Correctly**
 *   **Steps:**

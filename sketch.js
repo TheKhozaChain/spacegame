@@ -29,6 +29,13 @@ let musicIntensity = 0;
 let lastMusicUpdate = 0;
 let soundEnabled = true;
 let soundInitialized = false;
+let shootEnv; // Envelope for player shoot sound
+let explosionEnv; // Envelope for regular explosions
+let bossExplosionEnv; // Envelope for boss explosions
+let crackleNoise; // Noise for explosion crackle
+let crackleFilter; // BandPass filter for crackle
+let crackleEnv; // Envelope for crackle
+let powerUpEnv; // Envelope for power-up collection sounds
 
 // Vibeverse power-up variables
 let vibeScoreMultiplier = 1;
@@ -138,13 +145,13 @@ function setup() {
     explosionSound.start();
     
     // Create background music (layered approach)
-    backgroundMusic = new p5.Oscillator('sine');
+    backgroundMusic = new p5.Oscillator('triangle'); // Changed to triangle
     backgroundMusic.amp(0.05); // Start with very low volume
     backgroundMusic.freq(60);
     backgroundMusic.start();
     
     // Create secondary higher-intensity music layer
-    window.musicLayerHigh = new p5.Oscillator('triangle');
+    window.musicLayerHigh = new p5.Oscillator('triangle'); // Changed to triangle (was already triangle)
     window.musicLayerHigh.amp(0);
     window.musicLayerHigh.freq(120);
     window.musicLayerHigh.start();
@@ -179,6 +186,38 @@ function setup() {
     // Mark sound as successfully initialized
     soundInitialized = true;
     console.log("Sound initialized successfully");
+
+    // Initialize the envelope for the shoot sound
+    shootEnv = new p5.Env();
+    shootEnv.setADSR(0.005, 0.08, 0, 0.05); // A:0.005s, D:0.08s, S:0, R:0.05s for a sharper sound
+    shootEnv.setRange(0.3, 0); // Attack level 0.3, release level 0
+
+    // Initialize envelopes and noise for explosions
+    explosionEnv = new p5.Env();
+    explosionEnv.setADSR(0.005, 0.15, 0, 0.1); // Attack, Decay, Sustain Ratio, Release
+    explosionEnv.setRange(0.4, 0); // Attack Level, Release Level
+
+    bossExplosionEnv = new p5.Env();
+    bossExplosionEnv.setADSR(0.01, 0.3, 0, 0.2);
+    bossExplosionEnv.setRange(0.6, 0);
+
+    crackleNoise = new p5.Noise('pink');
+    crackleNoise.amp(0); // Start silent, will be controlled by envelope via filter
+    crackleNoise.start();
+
+    crackleFilter = new p5.BandPass();
+    crackleFilter.freq(3000); // Center frequency for crackle
+    crackleFilter.res(15);    // Resonance
+    crackleNoise.connect(crackleFilter); // Connect noise to filter
+
+    crackleEnv = new p5.Env();
+    crackleEnv.setADSR(0.001, 0.08, 0, 0.05); // Very short, sharp envelope for crackle
+    crackleEnv.setRange(0.15, 0); // Quieter than main explosion thump
+
+    // Initialize envelope for power-up sounds
+    powerUpEnv = new p5.Env();
+    powerUpEnv.setADSR(0.005, 0.1, 0, 0.1); // Short attack, short decay, no sustain, short release
+    powerUpEnv.setRange(0.4, 0); // Attack level 0.4, release level 0
     
     // In the try block where sound is initialized, add this at the beginning:
     console.log("Browser user agent:", navigator.userAgent);
@@ -330,14 +369,18 @@ function updateDynamicMusic() {
     if (!backgroundMusic || typeof backgroundMusic.amp !== 'function') return;
     
     // Adjust base music layer with more audible volumes
-    let baseVolume = min(0.1, 0.05 + (musicIntensity * 0.05)); // Reduced from 0.25/0.1+0.15
+    let baseVolume = min(0.09, 0.03 + (musicIntensity * 0.06)); // Slightly adjusted max and scaling
     backgroundMusic.amp(baseVolume); 
-    backgroundMusic.freq(map(musicIntensity, 0, 1, 80, 150)); // Higher pitch with intensity
+    // Change frequency mapping for a deeper, more atmospheric drone (approx A1 to F2)
+    let baseFreq = map(musicIntensity, 0, 1, 55, 85); 
+    backgroundMusic.freq(baseFreq);
     
     // If we have a high intensity layer, control it separately
-    if (window.musicLayerHigh && typeof window.musicLayerHigh.amp === 'function') {
-      let highLayerVolume = min(0.08, musicIntensity * 0.08); // Reduced from 0.2/0.2
-      window.musicLayerHigh.amp(highLayerVolume); // Fade in the intense layer based on gameplay
+    if (window.musicLayerHigh && typeof window.musicLayerHigh.amp === 'function' && typeof backgroundMusic.getFreq === 'function') {
+      let highLayerVolume = min(0.07, musicIntensity * 0.07); // Slightly adjusted max and scaling
+      window.musicLayerHigh.amp(highLayerVolume);
+      // Set frequency to a harmonic (e.g., a perfect fifth above) the base layer
+      window.musicLayerHigh.freq(backgroundMusic.getFreq() * 1.5); 
     }
   } catch (e) {
     // Log error but don't disable all sound for minor errors
@@ -349,41 +392,31 @@ function updateDynamicMusic() {
 function playShootSound(weaponLevel = 1, isPowerShot = false) {
   // Skip if sound is disabled, not initialized, or muted
   if (!soundEnabled || !soundInitialized || isMuted) return;
-  
+
   try {
-    // Skip if sound is disabled or not available
-    if (!shootSound || typeof shootSound.amp !== 'function' || 
-        typeof shootSound.freq !== 'function') return;
-    
-    // Base frequency varies by weapon level
-    let baseFreq = 220 + (weaponLevel * 30);
-    
-    // Add some random variation for more natural sound
-    let randomPitch = random(0.95, 1.05);
-    let finalFreq = baseFreq * randomPitch;
-    
-    // Set the frequency first
-    shootSound.freq(finalFreq);
-    
-    // Power shots sound more impactful
+    if (!shootSound || typeof shootSound.freq !== 'function' || !shootEnv) return;
+
+    // Change oscillator type for a more 'zappy' sound
+    shootSound.setType('triangle'); 
+
+    // Determine base frequency and pitch variation
+    let startFreq = 660 + (weaponLevel * 50); // Higher base for more 'zap'
     if (isPowerShot) {
-      finalFreq *= 0.8; // Deeper sound for power shots
-      shootSound.amp(0.08); // Reduced from 0.15
-    } else {
-      // Regular shots vary by weapon level
-      let ampLevel = 0.05 + (weaponLevel * 0.01); // Reduced from 0.1+0.02
-      shootSound.amp(min(0.08, ampLevel)); // Reduced from 0.2
+      startFreq *= 0.8; // Deeper for power shots
     }
+    let endFreq = startFreq * 0.5; // Sweep downwards
+
+    // Set initial frequency
+    shootSound.freq(startFreq);
     
-    // Rapid falloff - essential for hearing the sound
-    setTimeout(() => {
-      if (shootSound && typeof shootSound.amp === 'function') {
-        shootSound.amp(0, 0.1); // Quick falloff over 100ms
-      }
-    }, 70);
+    // Rapid pitch sweep down
+    shootSound.freq(endFreq, 0.05); // Sweep to endFreq in 0.05 seconds
+
+    // Trigger the envelope
+    shootEnv.play(shootSound);
+
   } catch (e) {
-    // Log error but don't disable all sound for small errors
-    console.error("Shoot sound error:", e);
+    console.error("Error in playShootSound:", e);
   }
 }
 
@@ -1463,75 +1496,69 @@ function restartGame() {
 function playExplosionSound(size = 1, isEnemy = true) {
   // Skip if sound is disabled, not initialized, or muted
   if (!soundEnabled || !soundInitialized || isMuted) return;
-  
-  try {
-    // Choose the appropriate sound based on explosion type
-    let soundToPlay = isEnemy ? explosionSound : bossExplosionSound;
-    
-    // Skip if sound is disabled or not available
-    if (!soundToPlay || typeof soundToPlay.amp !== 'function' || 
-        typeof soundToPlay.freq !== 'function') return;
 
-    // Create size-based variation for more satisfying and varied explosions
-    let sizeVariation = size * 0.5;
-    let randomPitch = random(0.9, 1.1);
-    
-    // Enhanced sound characteristics based on size
-    if (size < 0.7) {
-      // Small hit/impact sounds (when enemies are damaged but not destroyed)
-      soundToPlay.freq(random(200, 250) * randomPitch);
-      soundToPlay.amp(0.12); // Increased from 0.08
-      setTimeout(() => soundToPlay.amp(0, 0.1), 100);
-    } else if (size > 2) {
-      // Large explosions (bosses, etc)
-      soundToPlay.freq(random(40, 60) * randomPitch); // Lower frequency for more dramatic boom
-      soundToPlay.amp(min(0.5, 0.25 + sizeVariation * 0.25)); // Increased from 0.3/0.15+0.15
-      
-      // For big explosions, add secondary explosion sounds with delay for more impact
-      setTimeout(() => {
-        if (explosionSound && typeof explosionSound.amp === 'function') {
-          explosionSound.freq(random(60, 90)); // Lower frequency than before
-          explosionSound.amp(0.30); // Increased from 0.15
-          setTimeout(() => explosionSound.amp(0, 0.3), 250); // Longer duration
-        }
-      }, 100);
-      
-      // Add a third, lower frequency rumble for really big explosions
-      setTimeout(() => {
-        if (explosionSound && typeof explosionSound.amp === 'function') {
-          explosionSound.freq(random(30, 45)); // Even lower frequency for dramatic effect
-          explosionSound.amp(0.25); // Increased from 0.1
-          setTimeout(() => explosionSound.amp(0, 0.4), 350); // Longer fade-out
-        }
-      }, 200);
-      
-      // Add a final echo effect for massive explosions
-      setTimeout(() => {
-        if (explosionSound && typeof explosionSound.amp === 'function') {
-          explosionSound.freq(random(20, 35));
-          explosionSound.amp(0.15);
-          setTimeout(() => explosionSound.amp(0, 0.5), 400);
-        }
-      }, 450);
-    } else {
-      // Regular explosions (regular enemies)
-      soundToPlay.freq((100 - size * 20) * randomPitch); // Lower base frequency
-      soundToPlay.amp(min(0.35, 0.15 + sizeVariation * 0.20)); // Increased from 0.25/0.1+0.15
-      
-      // Add a secondary boom for regular explosions too
-      setTimeout(() => {
-        if (explosionSound && typeof explosionSound.amp === 'function') {
-          explosionSound.freq(random(80, 100));
-          explosionSound.amp(0.15);
-          setTimeout(() => explosionSound.amp(0, 0.2), 150);
-        }
-      }, 60);
-      
-      setTimeout(() => soundToPlay.amp(0, 0.3), 250); // Longer duration
+  try {
+    let mainOscillator = isEnemy ? explosionSound : bossExplosionSound;
+    let mainEnv = isEnemy ? explosionEnv : bossExplosionEnv;
+
+    if (!mainOscillator || typeof mainOscillator.freq !== 'function' || !mainEnv || !crackleNoise || !crackleFilter || !crackleEnv) {
+      console.warn("Explosion sound components not ready.");
+      return;
     }
+
+    // --- Primary Explosion Sound (Thump/Whump) ---
+    mainOscillator.setType('triangle'); // Fuller sound
+
+    let startFreq, endFreqSweep, attackLevel, decayTime;
+
+    if (isEnemy) { // Regular enemy explosion
+      startFreq = map(size, 0.5, 2, 120, 80, true); // Clamp between 80Hz and 120Hz
+      endFreqSweep = startFreq * 0.5; // Sweep downwards
+      attackLevel = map(size, 0.5, 2, 0.3, 0.5, true);
+      decayTime = map(size, 0.5, 2, 0.1, 0.2, true);
+      mainEnv.setADSR(0.005, decayTime, 0, 0.1);
+      mainEnv.setRange(attackLevel, 0);
+    } else { // Boss explosion
+      startFreq = map(size, 1, 3, 100, 60, true); // Deeper for boss
+      endFreqSweep = startFreq * 0.4;
+      attackLevel = map(size, 1, 3, 0.5, 0.7, true);
+      decayTime = map(size, 1, 3, 0.2, 0.4, true);
+      mainEnv.setADSR(0.01, decayTime, 0, 0.2); // Slightly longer for boss
+      mainEnv.setRange(attackLevel, 0);
+    }
+    
+    mainOscillator.freq(startFreq);
+    mainOscillator.freq(endFreqSweep, 0.08); // Quick downward sweep for the "thump"
+    mainEnv.play(mainOscillator);
+
+    // --- Crackle/Sizzle Effect ---
+    // Vary crackle slightly for interest
+    crackleFilter.freq(random(2500, 3500));
+    crackleFilter.res(random(12, 18));
+    
+    let crackleAttackLevel = isEnemy ? 0.1 : 0.15; // Boss crackle slightly louder
+    crackleAttackLevel = map(size, 0.5, 3, crackleAttackLevel * 0.7, crackleAttackLevel * 1.3, true); // Scale with size
+    crackleEnv.setRange(crackleAttackLevel, 0);
+    crackleEnv.setADSR(0.001, map(size, 0.5, 3, 0.06, 0.12, true), 0, 0.05); // Crackle duration also scales slightly
+
+    // Trigger crackle (noise is already connected to filter, envelope controls filter's output)
+    // The p5.Noise object's amplitude is 0, the envelope plays the filter which processes the noise.
+    // We need to ensure the filter is processing the noise when the envelope is triggered.
+    // A common way is to have noise.amp(1) and then the filter's envelope controls the final volume.
+    // Since noise.amp(0) was set in setup, let's briefly set its amp for the crackleEnv.
+    // This is a bit of a workaround for how p5.Noise and p5.Filter interact with p5.Env directly on the filter.
+    // A cleaner way would be noise.connect(filter); filter.amp(0); crackleEnv.play(filter);
+    // However, let's try a direct approach first:
+    
+    // --- Crackle/Sizzle Effect (Corrected) ---
+    // The crackleNoise is connected to crackleFilter.
+    // The crackleEnv will control the amplitude of crackleNoise.
+    // The filtered noise is what we hear.
+    crackleNoise.amp(crackleEnv); // Envelope now controls the amplitude of the noise source
+    crackleEnv.play(crackleNoise); // Play the envelope, affecting the noise sent to the filter
+
   } catch (e) {
-    // Log error but don't disable all sound for small errors
-    console.error("Explosion sound error:", e);
+    console.error("Error in playExplosionSound:", e);
   }
 }
 
@@ -1734,16 +1761,8 @@ class Player {
       
       this.shootCooldown = currentCooldown;
       
-      // Play shoot sound only if not muted
-      if (!isMuted && soundEnabled && soundInitialized) {
-        try {
-          shootSound.freq(440);
-          shootSound.amp(0.5, 0.1); // Ramp amplitude to 0.5 over 0.1 seconds
-          setTimeout(() => shootSound.amp(0, 0.1), 100); // Ramp back to 0 after 100ms
-        } catch (e) {
-          console.warn("Error playing shoot sound:", e);
-        }
-      }
+      // Call the refactored playShootSound function
+      playShootSound(this.weaponLevel, false); // Assuming standard shot is not a powerShot
     }
   }
   
@@ -2719,21 +2738,77 @@ class PowerUp {
       // 5. Visual effect - screen flash
       screenFlash = 1.0; // Will fade out in the draw loop
       
-      // Play special sound
-      if (soundEnabled && soundInitialized && !isMuted) {
-        try {
-          // Special vibeverse sound
-          if (powerUpSound && typeof powerUpSound.amp === 'function') {
-            powerUpSound.freq(random(800, 1200));
-            powerUpSound.amp(0.2);
+      // Play Vibe power-up sound
+      if (!isMuted && soundEnabled && soundInitialized && powerUpSound && typeof powerUpSound.freq === 'function' && powerUpEnv) {
+        powerUpSound.setType('sine'); 
+        let baseFreq = random(800, 1000); // Slightly lower range for more musicality
+        powerUpSound.freq(baseFreq);
+        // Quick arpeggio effect
+        powerUpSound.freq(baseFreq * 1.25, 0.05, 0); // Sweep up
+        powerUpSound.freq(baseFreq * 0.75, 0.05, 0.05); // Sweep down
+        powerUpSound.freq(baseFreq, 0.05, 0.1); // Return to base
+        powerUpEnv.setADSR(0.005, 0.15, 0, 0.1); // Slightly longer decay for vibe
+        powerUpEnv.setRange(0.3,0);
+        powerUpEnv.play(powerUpSound);
+        powerUpEnv.setADSR(0.005, 0.1, 0, 0.1); // Reset to default for other powerups
+        powerUpEnv.setRange(0.4,0);
+      }
+    } else { 
+      // Handle other power-up types (0-4)
+      if (!isMuted && soundEnabled && soundInitialized && powerUpSound && typeof powerUpSound.freq === 'function' && powerUpEnv) {
+        let freq = 440;
+        let oscType = 'sine'; // Default to sine for cleaner tones
+
+        switch (this.type) {
+          case 0: // Weapon Upgrade - Rising tone
+            oscType = 'triangle';
+            freq = 440; 
+            powerUpSound.freq(freq); // Start frequency
+            powerUpSound.freq(freq * 1.5, 0.15); // Sweep to 1.5x frequency over 0.15s
+            break;
+          case 1: // Shield - Steady, slightly modulated tone
+            oscType = 'sine'; // Sine for a pure shield tone
+            freq = 623.25; // D#5 A bit ethereal
+            powerUpSound.freq(freq);
+            // Add a subtle vibrato/tremolo if possible or just a clean tone.
+            // For simplicity, a clean tone is used here.
+            // If p5.Oscillator had easy LFO modulation for amplitude/frequency, it would be added here.
+            break;
+          case 2: // Extra Life - Bright, two-note chime (e.g., C5 then G5)
+            oscType = 'sine';
+            powerUpSound.freq(523.25); // C5
+            powerUpEnv.play(powerUpSound); // Play C5
+            // Schedule G5 shortly after
             setTimeout(() => {
-              if (powerUpSound && typeof powerUpSound.amp === 'function') {
-                powerUpSound.amp(0, 0.5);
+              if (!isMuted && soundEnabled && soundInitialized) { // Re-check mute status
+                powerUpSound.freq(783.99); // G5
+                powerUpEnv.play(powerUpSound);
               }
-            }, 500);
-          }
-        } catch (e) {
-          console.warn("Error playing vibeverse sound", e);
+            }, 120); // Delay for the second note
+            return; // Return early as we are handling play manually for two notes
+          case 3: // Rapid Fire - Short, high-pitched blip
+            oscType = 'triangle';
+            freq = 1318.51; // E6
+            powerUpEnv.setADSR(0.001, 0.05, 0, 0.05); // Make it extra short
+            powerUpSound.freq(freq);
+            break;
+          case 4: // Triple Shot - Similar to Rapid Fire, slightly different pitch
+            oscType = 'triangle';
+            freq = 1479.98; // F#6/Gb6
+            powerUpEnv.setADSR(0.001, 0.05, 0, 0.05); // Make it extra short
+            powerUpSound.freq(freq);
+            break;
+        }
+        
+        powerUpSound.setType(oscType);
+        // For types 0, 1, 3, 4, play once. Type 2 handles its own playback.
+        if (this.type !== 2) {
+            powerUpEnv.play(powerUpSound);
+        }
+        
+        // Reset envelope for next non-blip sound if it was changed
+        if (this.type === 3 || this.type === 4) {
+            powerUpEnv.setADSR(0.005, 0.1, 0, 0.1); 
         }
       }
     }
