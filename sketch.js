@@ -27,6 +27,11 @@ let bossExplosionSound;
 let levelUpSound;
 let musicIntensity = 0;
 let lastMusicUpdate = 0;
+// Melody settings for smoother background music
+let melodyNotes = [55, 62, 65, 67, 60, 67, 62, 55];
+let melodyIndex = 0;
+let lastMelodyChange = 0;
+const melodyInterval = 1500; // milliseconds
 let soundEnabled = true;
 let soundInitialized = false;
 let shootEnv; // Envelope for player shoot sound
@@ -145,13 +150,13 @@ function setup() {
     explosionSound.start();
     
     // Create background music (layered approach)
-    backgroundMusic = new p5.Oscillator('triangle'); // Changed to triangle
-    backgroundMusic.amp(0.05); // Start with very low volume
+    backgroundMusic = new p5.Oscillator('sine'); // smoother tone
+    backgroundMusic.amp(0); // start silent, volume handled later
     backgroundMusic.freq(60);
     backgroundMusic.start();
-    
+
     // Create secondary higher-intensity music layer
-    window.musicLayerHigh = new p5.Oscillator('triangle'); // Changed to triangle (was already triangle)
+    window.musicLayerHigh = new p5.Oscillator('sine');
     window.musicLayerHigh.amp(0);
     window.musicLayerHigh.freq(120);
     window.musicLayerHigh.start();
@@ -369,18 +374,24 @@ function updateDynamicMusic() {
     if (!backgroundMusic || typeof backgroundMusic.amp !== 'function') return;
     
     // Adjust base music layer with more audible volumes
-    let baseVolume = min(0.09, 0.03 + (musicIntensity * 0.06)); // Slightly adjusted max and scaling
-    backgroundMusic.amp(baseVolume); 
-    // Change frequency mapping for a deeper, more atmospheric drone (approx A1 to F2)
-    let baseFreq = map(musicIntensity, 0, 1, 55, 85); 
+    let baseVolume = min(0.08, 0.02 + (musicIntensity * 0.06));
+
+    // Change melody every few seconds for a simple tune
+    if (millis() - lastMelodyChange > melodyInterval) {
+      melodyIndex = (melodyIndex + 1) % melodyNotes.length;
+      lastMelodyChange = millis();
+    }
+
+    let baseFreq = melodyNotes[melodyIndex] + map(musicIntensity, 0, 1, 0, 10);
     backgroundMusic.freq(baseFreq);
+    backgroundMusic.amp(baseVolume);
     
     // If we have a high intensity layer, control it separately
-    if (window.musicLayerHigh && typeof window.musicLayerHigh.amp === 'function' && typeof backgroundMusic.getFreq === 'function') {
-      let highLayerVolume = min(0.07, musicIntensity * 0.07); // Slightly adjusted max and scaling
+    if (window.musicLayerHigh && typeof window.musicLayerHigh.amp === 'function') {
+      let highLayerVolume = min(0.06, musicIntensity * 0.06);
       window.musicLayerHigh.amp(highLayerVolume);
-      // Set frequency to a harmonic (e.g., a perfect fifth above) the base layer
-      window.musicLayerHigh.freq(backgroundMusic.getFreq() * 1.5); 
+      // Set frequency to a harmonic (perfect fifth above)
+      window.musicLayerHigh.freq(backgroundMusic.freq() * 1.5);
     }
   } catch (e) {
     // Log error but don't disable all sound for minor errors
