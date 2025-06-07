@@ -391,7 +391,7 @@
         portalMessage.style.padding = '5px 10px';
         portalMessage.style.borderRadius = '5px';
         portalMessage.style.transition = 'opacity 2s';
-        portalMessage.innerHTML = `Welcome, ${window.portalParams.username || 'Space Traveler'}! Return portal activated.`;
+        portalMessage.textContent = `Welcome, ${window.portalParams.username || 'Space Traveler'}! Return portal activated.`;
         
         document.body.appendChild(portalMessage);
         
